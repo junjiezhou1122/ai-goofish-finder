@@ -2,6 +2,7 @@
 任务生成作业执行器
 """
 import os
+from pathlib import Path
 
 import aiofiles
 
@@ -11,12 +12,16 @@ from src.services.scheduler_service import SchedulerService
 from src.services.task_generation_service import TaskGenerationService
 from src.services.task_service import TaskService
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+PROMPTS_DIR = BASE_DIR / "prompts"
+
+
 def build_criteria_filename(keyword: str) -> str:
     safe_keyword = "".join(
         char for char in keyword.lower().replace(" ", "_")
         if char.isalnum() or char in "_-"
     ).rstrip()
-    return f"prompts/{safe_keyword}_criteria.txt"
+    return str(PROMPTS_DIR / f"{safe_keyword}_criteria.txt")
 
 
 def build_task_create(req: TaskGenerateRequest, criteria_file: str) -> TaskCreate:
@@ -47,7 +52,7 @@ async def save_generated_criteria(output_filename: str, generated_criteria: str)
     if not generated_criteria or not generated_criteria.strip():
         raise RuntimeError("AI 未能生成分析标准，返回内容为空。")
 
-    os.makedirs("prompts", exist_ok=True)
+    Path(output_filename).parent.mkdir(parents=True, exist_ok=True)
     async with aiofiles.open(output_filename, "w", encoding="utf-8") as file:
         await file.write(generated_criteria)
 

@@ -8,7 +8,7 @@ import json
 import threading
 from pathlib import Path
 
-from src.infrastructure.persistence.sqlite_connection import init_schema, sqlite_connection
+from src.infrastructure.persistence.sqlite_connection import get_database_path, init_schema, sqlite_connection
 from src.infrastructure.persistence.storage_names import (
     build_result_filename,
     normalize_keyword_from_filename,
@@ -17,6 +17,7 @@ from src.infrastructure.persistence.storage_names import (
 
 
 BOOTSTRAP_LOCK = threading.Lock()
+BOOTSTRAPPED_DATABASES: set[str] = set()
 LEGACY_CONFIG_FILE = "config.json"
 LEGACY_RESULT_DIR = "jsonl"
 LEGACY_PRICE_HISTORY_DIR = "price_history"
@@ -32,12 +33,19 @@ def bootstrap_sqlite_storage(
     legacy_result_dir: str = LEGACY_RESULT_DIR,
     legacy_price_history_dir: str = LEGACY_PRICE_HISTORY_DIR,
 ) -> None:
+    resolved_db_path = str(Path(db_path or get_database_path()).resolve())
+    if resolved_db_path in BOOTSTRAPPED_DATABASES:
+        return
+
     with BOOTSTRAP_LOCK:
-        with sqlite_connection(db_path) as conn:
+        if resolved_db_path in BOOTSTRAPPED_DATABASES:
+            return
+        with sqlite_connection(resolved_db_path) as conn:
             init_schema(conn)
             _import_tasks_if_needed(conn, legacy_config_file)
             _import_results_if_needed(conn, legacy_result_dir)
             _import_price_snapshots_if_needed(conn, legacy_price_history_dir)
+        BOOTSTRAPPED_DATABASES.add(resolved_db_path)
 
 
 def _table_is_empty(conn, table_name: str) -> bool:

@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -8,9 +9,10 @@ from openai import AsyncOpenAI
 load_dotenv()
 
 # --- File Paths & Directories ---
-STATE_FILE = "xianyu_state.json"
-IMAGE_SAVE_DIR = "images"
-CONFIG_FILE = "config.json"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+STATE_FILE = str(PROJECT_ROOT / "xianyu_state.json")
+IMAGE_SAVE_DIR = str(PROJECT_ROOT / "images")
+CONFIG_FILE = str(PROJECT_ROOT / "config.json")
 os.makedirs(IMAGE_SAVE_DIR, exist_ok=True)
 
 # 任务隔离的临时图片目录前缀

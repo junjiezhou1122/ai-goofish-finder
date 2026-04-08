@@ -15,8 +15,20 @@ const zhCNExtra = {
       loadAccountsFailed: '加载账号列表失败',
       notFound: '未找到要删除的任务',
       progressFailed: '任务进度获取失败',
+      draftGenerated: 'AI 已生成任务草稿',
+      draftGenerateFailed: 'AI 生成任务草稿失败',
     },
-    createDialog: { trigger: '+ 创建新任务', title: '创建新监控任务（AI 或关键词）', submit: '创建任务', submitting: '提交中...' },
+    createDialog: {
+      trigger: '+ 创建新任务',
+      title: '创建新监控任务（AI 或关键词）',
+      submit: '创建任务',
+      submitting: '提交中...',
+      sourceHint: {
+        radar: '这个草稿来自雷达热词，默认偏向继续验证需求和热度。',
+        recommendation: '这个草稿来自推荐词，默认更适合快速测试新机会。',
+        pool: '这个草稿来自候选词池，默认保留你的备注作为任务背景。',
+      },
+    },
     editDialog: { title: '编辑任务: {task}', save: '保存更改' },
     criteria: { title: '重新生成 AI 标准', description: '修改详细需求后将重新生成 AI 分析标准。', descriptionRequired: '请填写新的详细需求。', action: '重新生成', generating: '生成中...' },
     deleteDialog: { title: '删除任务', descriptionWithTask: '确定删除任务「{task}」吗？此操作不可恢复。', descriptionFallback: '确定删除该任务吗？此操作不可恢复。', confirm: '确认删除' },
@@ -46,6 +58,9 @@ const zhCNExtra = {
     form: {
       taskName: '任务名称',
       taskNamePlaceholder: '例如：索尼 A7M4 相机',
+      userIntent: '一句话意图',
+      userIntentPlaceholder: '例如：帮我找适合在闲鱼卖的网站源码，优先自动发货、低售后、可重复交付。',
+      userIntentHint: '这里可以只写你的目标，AI 会尽量帮你补全任务名、搜索关键词、判断模式和默认参数。你也可以继续手动修改下面的字段。',
       keyword: '搜索关键词',
       keywordPlaceholder: '例如：a7m4',
       decisionMode: '判断模式',
@@ -104,6 +119,8 @@ const zhCNExtra = {
         rotateDescription: '当前任务强制使用账号池轮换。',
       },
       publishOptions: { none: '不筛选（默认）', latest: '最新', oneDay: '1天内', threeDays: '3天内', sevenDays: '7天内', fourteenDays: '14天内' },
+      generateDraft: 'AI 生成任务草稿',
+      generatingDraft: '草稿生成中...',
       validation: {
         incomplete: '信息不完整',
         nameAndKeywordRequired: '任务名称和关键词不能为空。',
@@ -112,6 +129,7 @@ const zhCNExtra = {
         keywordRuleRequired: '关键词模式下至少需要一个关键词。',
         accountStrategyIncomplete: '账号策略不完整',
         fixedAccountRequired: '固定账号模式下必须选择一个账号。',
+        userIntentRequired: '请先输入一句话意图。',
       },
     },
     region: {

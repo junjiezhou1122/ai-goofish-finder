@@ -2,6 +2,7 @@
 设置管理路由
 """
 import os
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -39,6 +40,7 @@ from src.services.process_service import ProcessService
 
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 AI_TEST_PROMPT = "Reply with OK only."
 AI_TEST_MAX_OUTPUT_TOKENS = 32
 
@@ -216,7 +218,7 @@ async def update_rotation_settings(settings: RotationSettingsModel):
 async def get_system_status(
     process_service: ProcessService = Depends(get_process_service),
 ):
-    state_file = "xianyu_state.json"
+    state_file = str(PROJECT_ROOT / "xianyu_state.json")
     login_state_exists = os.path.exists(state_file)
     env_file_exists = os.path.exists(env_manager.env_file)
     openai_api_key = env_manager.get_value("OPENAI_API_KEY", "")

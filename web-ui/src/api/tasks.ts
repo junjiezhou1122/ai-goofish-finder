@@ -1,6 +1,7 @@
 import type {
   Task,
   TaskCreateResponse,
+  TaskDraftResponse,
   TaskGenerateRequest,
   TaskGenerationJob,
   TaskUpdate,
@@ -18,6 +19,16 @@ export async function createTaskWithAI(data: TaskGenerateRequest): Promise<TaskC
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
+  })
+}
+
+export async function generateTaskDraft(userIntent: string): Promise<TaskDraftResponse> {
+  return await http('/api/tasks/draft', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ user_intent: userIntent }),
   })
 }
 

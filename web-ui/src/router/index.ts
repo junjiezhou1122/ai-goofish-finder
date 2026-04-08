@@ -41,6 +41,12 @@ const routes = [
         meta: { titleKey: 'routes.results', requiresAuth: true },
       },
       {
+        path: 'radar',
+        name: 'Radar',
+        component: () => import('@/views/RadarView.vue'),
+        meta: { titleKey: 'routes.radar', requiresAuth: true },
+      },
+      {
         path: 'logs',
         name: 'Logs',
         component: () => import('@/views/LogsView.vue'),

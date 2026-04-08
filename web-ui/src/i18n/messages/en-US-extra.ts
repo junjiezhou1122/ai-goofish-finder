@@ -15,8 +15,20 @@ const enUSExtra = {
       loadAccountsFailed: 'Failed to load account list.',
       notFound: 'Task to delete was not found.',
       progressFailed: 'Failed to fetch task progress.',
+      draftGenerated: 'AI task draft generated.',
+      draftGenerateFailed: 'Failed to generate AI task draft.',
     },
-    createDialog: { trigger: '+ New Task', title: 'Create Monitoring Task (AI or Keyword)', submit: 'Create Task', submitting: 'Submitting...' },
+    createDialog: {
+      trigger: '+ New Task',
+      title: 'Create Monitoring Task (AI or Keyword)',
+      submit: 'Create Task',
+      submitting: 'Submitting...',
+      sourceHint: {
+        radar: 'This draft comes from a radar keyword and is tuned for validating heat and demand.',
+        recommendation: 'This draft comes from a recommendation and is tuned for quickly testing a new angle.',
+        pool: 'This draft comes from the keyword pool and keeps your note as task context.',
+      },
+    },
     editDialog: { title: 'Edit Task: {task}', save: 'Save Changes' },
     criteria: { title: 'Regenerate AI Criteria', description: 'Update the detailed requirement to regenerate AI analysis criteria.', descriptionRequired: 'Please provide a new detailed requirement.', action: 'Regenerate', generating: 'Generating...' },
     deleteDialog: { title: 'Delete Task', descriptionWithTask: 'Delete task "{task}"? This action cannot be undone.', descriptionFallback: 'Delete this task? This action cannot be undone.', confirm: 'Delete' },
@@ -46,6 +58,9 @@ const enUSExtra = {
     form: {
       taskName: 'Task Name',
       taskNamePlaceholder: 'Example: Sony A7M4 Camera',
+      userIntent: 'One-line Intent',
+      userIntentPlaceholder: 'Example: Help me find website source-code products suitable for selling on Goofish, with auto delivery, low after-sales cost, and repeatable fulfillment.',
+      userIntentHint: 'You can describe only the goal here. AI will try to fill the task name, search keyword, decision mode, and sensible defaults for you. You can still edit the fields below.',
       keyword: 'Search Keyword',
       keywordPlaceholder: 'Example: a7m4',
       decisionMode: 'Decision Mode',
@@ -104,6 +119,8 @@ const enUSExtra = {
         rotateDescription: 'Force this task to rotate through the account pool.',
       },
       publishOptions: { none: 'No Filter (default)', latest: 'Latest', oneDay: 'Within 1 Day', threeDays: 'Within 3 Days', sevenDays: 'Within 7 Days', fourteenDays: 'Within 14 Days' },
+      generateDraft: 'Generate AI Task Draft',
+      generatingDraft: 'Generating Draft...',
       validation: {
         incomplete: 'Incomplete information',
         nameAndKeywordRequired: 'Task name and keyword are required.',
@@ -112,6 +129,7 @@ const enUSExtra = {
         keywordRuleRequired: 'At least one keyword is required in keyword mode.',
         accountStrategyIncomplete: 'Incomplete account strategy',
         fixedAccountRequired: 'A fixed account must be selected in fixed mode.',
+        userIntentRequired: 'Please enter a one-line intent first.',
       },
     },
     region: {

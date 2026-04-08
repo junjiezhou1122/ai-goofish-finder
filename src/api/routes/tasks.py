@@ -1,6 +1,7 @@
 """
 任务管理路由
 """
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List
@@ -22,13 +23,17 @@ from src.services.task_generation_runner import (
 )
 from src.services.task_payloads import serialize_task, serialize_tasks
 from src.domain.models.task import TaskCreate, TaskUpdate, TaskGenerateRequest
-from src.prompt_utils import generate_criteria
+from src.prompt_utils import generate_criteria, generate_task_draft
 from src.utils import resolve_task_log_path
 from src.services.account_strategy_service import normalize_account_strategy
 from src.infrastructure.persistence.storage_names import build_result_filename
 from src.services.price_history_service import delete_price_snapshots
 from src.services.result_storage_service import delete_result_file_records
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+class TaskDraftPayload(BaseModel):
+    user_intent: str = Field(..., min_length=1, max_length=2000)
 
 async def _reload_scheduler_if_needed(
     task_service: TaskService,
@@ -92,9 +97,23 @@ async def generate_task(
     generation_service: TaskGenerationService = Depends(get_task_generation_service),
 ):
     """创建任务。AI模式会生成分析标准，关键词模式直接保存规则。"""
-    print(f"收到任务生成请求: {req.task_name}，模式: {req.decision_mode}")
-
     try:
+        if req.user_intent and (not str(req.keyword or "").strip() or not str(req.task_name or "").strip()):
+            draft = await generate_task_draft(req.user_intent)
+            req.task_name = str(draft.get("task_name") or "").strip()
+            req.keyword = str(draft.get("keyword") or "").strip()
+            req.description = str(draft.get("description") or req.description or "").strip()
+            draft_mode = str(draft.get("decision_mode") or req.decision_mode or "ai").strip().lower()
+            req.decision_mode = "keyword" if draft_mode == "keyword" else "ai"
+            req.keyword_rules = draft.get("keyword_rules") or []
+            req.max_pages = int(draft.get("max_pages") or req.max_pages or 3)
+            req.new_publish_option = draft.get("new_publish_option") or req.new_publish_option
+            req.personal_only = bool(draft.get("personal_only", req.personal_only))
+            req.free_shipping = bool(draft.get("free_shipping", req.free_shipping))
+            req.analyze_images = bool(draft.get("analyze_images", req.analyze_images))
+
+        print(f"收到任务生成请求: {req.task_name}，模式: {req.decision_mode}，关键词: {req.keyword}")
+
         mode = req.decision_mode or "ai"
         if mode == "ai":
             job = await generation_service.create_job(req.task_name)
@@ -127,6 +146,15 @@ async def generate_task(
         import traceback
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=error_msg)
+@router.post("/draft", response_model=dict)
+async def generate_task_draft_route(payload: TaskDraftPayload):
+    try:
+        draft = await generate_task_draft(payload.user_intent)
+        return {"draft": draft}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI任务草稿生成失败: {str(e)}")
+
+
 @router.get("/generate-jobs/{job_id}", response_model=dict)
 async def get_task_generation_job(
     job_id: str,
@@ -177,11 +205,7 @@ async def update_task(
                 )
                 if not str(description_for_ai or "").strip():
                     raise HTTPException(status_code=400, detail="AI 模式下详细需求不能为空。")
-                safe_keyword = "".join(
-                    c for c in existing_task.keyword.lower().replace(' ', '_')
-                    if c.isalnum() or c in "_-"
-                ).rstrip()
-                output_filename = f"prompts/{safe_keyword}_criteria.txt"
+                output_filename = build_criteria_filename(existing_task.keyword)
                 print(f"目标文件路径: {output_filename}")
                 print("开始调用 AI 生成新的分析标准...")
                 generated_criteria = await generate_criteria(
@@ -192,7 +216,7 @@ async def update_task(
                     print("AI 返回的内容为空")
                     raise HTTPException(status_code=500, detail="AI 未能生成分析标准，返回内容为空。")
                 print(f"保存新的分析标准到: {output_filename}")
-                os.makedirs("prompts", exist_ok=True)
+                os.makedirs(os.path.dirname(output_filename), exist_ok=True)
                 async with aiofiles.open(output_filename, 'w', encoding='utf-8') as f:
                     await f.write(generated_criteria)
                 print(f"新的分析标准已保存")

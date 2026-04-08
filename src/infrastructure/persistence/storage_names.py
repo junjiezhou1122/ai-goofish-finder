@@ -3,8 +3,11 @@ SQLite 持久化相关的统一命名规则。
 """
 from __future__ import annotations
 
+from pathlib import Path
 
-DEFAULT_DATABASE_PATH = "data/app.sqlite3"
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+DEFAULT_DATABASE_PATH = str(PROJECT_ROOT / "data" / "app.sqlite3")
 RESULT_FILE_SUFFIX = "_full_data.jsonl"
 
 

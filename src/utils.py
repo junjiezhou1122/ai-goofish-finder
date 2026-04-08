@@ -5,6 +5,7 @@ import os
 import random
 import re
 import glob
+from pathlib import Path
 from datetime import datetime
 from functools import wraps
 from urllib.parse import quote
@@ -13,6 +14,9 @@ from openai import APIStatusError
 from requests.exceptions import HTTPError
 
 from src.services.result_storage_service import save_result_record
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOGS_DIR = PROJECT_ROOT / "logs"
 
 
 def retry_on_failure(retries=3, delay=5):
@@ -87,7 +91,7 @@ def build_task_log_path(task_id: int, task_name: str) -> str:
     """生成任务日志路径（包含任务名）。"""
     safe_name = sanitize_filename(task_name)
     filename = f"{safe_name}_{task_id}.log"
-    return os.path.join("logs", filename)
+    return str(LOGS_DIR / filename)
 
 
 def resolve_task_log_path(task_id: int, task_name: str) -> str:
@@ -95,7 +99,7 @@ def resolve_task_log_path(task_id: int, task_name: str) -> str:
     primary_path = build_task_log_path(task_id, task_name)
     if os.path.exists(primary_path):
         return primary_path
-    pattern = os.path.join("logs", f"*_{task_id}.log")
+    pattern = str(LOGS_DIR / f"*_{task_id}.log")
     matches = glob.glob(pattern)
     if matches:
         return matches[0]

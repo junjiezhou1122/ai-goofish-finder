@@ -3,6 +3,7 @@
 整合所有路由和服务
 """
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -17,6 +18,7 @@ from src.api.routes import (
     login_state,
     websocket,
     accounts,
+    radar,
 )
 from src.api.dependencies import (
     set_process_service,
@@ -34,6 +36,11 @@ from src.infrastructure.config.settings import settings as app_settings
 
 
 # 全局服务实例
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+DIST_DIR = BASE_DIR / "dist"
+DIST_ASSETS_DIR = DIST_DIR / "assets"
+
 process_service = ProcessService()
 scheduler_service = SchedulerService(process_service)
 task_generation_service = TaskGenerationService()
@@ -109,19 +116,21 @@ app.include_router(logs.router)
 app.include_router(settings.router)
 app.include_router(prompts.router)
 app.include_router(results.router)
+app.include_router(radar.router)
 app.include_router(login_state.router)
 app.include_router(websocket.router)
 app.include_router(accounts.router)
 
 # 挂载静态文件
 # 旧的静态文件目录（用于截图等）
-app.mount("/static", StaticFiles(directory="static"), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # 挂载 Vue 3 前端构建产物
 # 注意：需要在所有 API 路由之后挂载，以避免覆盖 API 路由
 import os
-if os.path.exists("dist"):
-    app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+if DIST_DIR.exists() and DIST_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(DIST_ASSETS_DIR)), name="assets")
 
 
 # 健康检查端点
@@ -155,8 +164,9 @@ from fastapi.responses import JSONResponse
 @app.get("/")
 async def read_root(request: Request):
     """提供 Vue 3 SPA 的主页面"""
-    if os.path.exists("dist/index.html"):
-        return FileResponse("dist/index.html")
+    index_path = DIST_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
     else:
         return JSONResponse(
             status_code=500,
@@ -176,8 +186,9 @@ async def serve_spa(request: Request, full_path: str):
         return JSONResponse(status_code=404, content={"error": "资源未找到"})
 
     # 其他所有路径都返回 index.html，让前端路由处理
-    if os.path.exists("dist/index.html"):
-        return FileResponse("dist/index.html")
+    index_path = DIST_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
     else:
         return JSONResponse(
             status_code=500,

@@ -8,8 +8,13 @@ import contextlib
 import os
 import signal
 import sys
+from pathlib import Path
 from datetime import datetime
 from typing import Awaitable, Callable, Dict, TextIO
+
+from src.infrastructure.config.env_manager import env_manager
+
+from fastapi import HTTPException
 
 from src.ai_handler import send_ntfy_notification
 from src.config import STATE_FILE
@@ -19,6 +24,9 @@ from src.utils import build_task_log_path
 
 STOP_TIMEOUT_SECONDS = 20
 SPIDER_DEBUG_LIMIT_ENV = "SPIDER_DEBUG_LIMIT"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+LOGS_DIR = PROJECT_ROOT / "logs"
+SPIDER_ENTRY = PROJECT_ROOT / "spider_v2.py"
 LifecycleHook = Callable[[int], Awaitable[None] | None]
 
 
@@ -51,16 +59,66 @@ class ProcessService:
         if asyncio.iscoroutine(result):
             await result
 
+    def _resolve_state_dir(self) -> Path:
+        raw = env_manager.get_value("ACCOUNT_STATE_DIR", "state") or "state"
+        state_dir = str(raw).strip().strip('"').strip("'") or "state"
+        candidate = Path(state_dir)
+        if not candidate.is_absolute():
+            candidate = PROJECT_ROOT / candidate
+        return candidate
+
+    def _find_available_state_file(self) -> str | None:
+        if os.path.exists(STATE_FILE):
+            return STATE_FILE
+        state_dir = self._resolve_state_dir()
+        if not state_dir.is_dir():
+            return None
+        for path in sorted(state_dir.glob("*.json")):
+            return str(path)
+        return None
+
     def _resolve_cookie_path(self, task_name: str) -> str | None:
         """Best-effort cookie/state path for a task."""
         try:
             task = find_task_by_name_sync(task_name)
             if task and isinstance(task.account_state_file, str) and task.account_state_file.strip():
-                return task.account_state_file.strip()
+                account_path = task.account_state_file.strip()
+                candidate = Path(account_path)
+                if not candidate.is_absolute():
+                    candidate = PROJECT_ROOT / candidate
+                if candidate.exists():
+                    return str(candidate)
+                return None
         except Exception:
             pass
 
-        return STATE_FILE if os.path.exists(STATE_FILE) else None
+        return self._find_available_state_file()
+
+    def _validate_start_prerequisites(self, task_name: str) -> None:
+        try:
+            task = find_task_by_name_sync(task_name)
+            if task and isinstance(task.account_state_file, str) and task.account_state_file.strip():
+                account_path = task.account_state_file.strip()
+                candidate = Path(account_path)
+                if not candidate.is_absolute():
+                    candidate = PROJECT_ROOT / candidate
+                if not candidate.exists():
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"任务绑定的登录状态文件不存在: {task.account_state_file}",
+                    )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+        cookie_path = self._resolve_cookie_path(task_name)
+        if cookie_path:
+            return
+        raise HTTPException(
+            status_code=400,
+            detail="未找到登录状态文件。请先在账号管理中添加账号，或上传 xianyu_state.json。",
+        )
 
     def is_running(self, task_id: int) -> bool:
         """检查任务是否正在运行"""
@@ -81,8 +139,8 @@ class ProcessService:
         await self._invoke_hook(self._on_stopped, task_id)
 
     def _open_log_file(self, task_id: int, task_name: str) -> tuple[str, TextIO]:
-        os.makedirs("logs", exist_ok=True)
-        log_file_path = build_task_log_path(task_id, task_name)
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        log_file_path = str(LOGS_DIR / Path(build_task_log_path(task_id, task_name)).name)
         log_file_handle = open(log_file_path, "a", encoding="utf-8")
         return log_file_path, log_file_handle
 
@@ -90,7 +148,7 @@ class ProcessService:
         command = [
             sys.executable,
             "-u",
-            "spider_v2.py",
+            str(SPIDER_ENTRY),
             "--task-name",
             task_name,
         ]
@@ -108,12 +166,14 @@ class ProcessService:
         child_env = os.environ.copy()
         child_env["PYTHONIOENCODING"] = "utf-8"
         child_env["PYTHONUTF8"] = "1"
+        child_env["PYTHONPATH"] = str(PROJECT_ROOT)
         return await asyncio.create_subprocess_exec(
             *self._build_spawn_command(task_name),
             stdout=log_file_handle,
             stderr=log_file_handle,
             preexec_fn=preexec_fn,
             env=child_env,
+            cwd=str(PROJECT_ROOT),
         )
 
     def _register_runtime(
@@ -137,19 +197,23 @@ class ProcessService:
             print(f"任务 '{task_name}' (ID: {task_id}) 已在运行中")
             return False
 
+        cookie_path = self._resolve_cookie_path(task_name)
+        self._validate_start_prerequisites(task_name)
         decision = self.failure_guard.should_skip_start(
             task_name,
-            cookie_path=self._resolve_cookie_path(task_name),
+            cookie_path=cookie_path,
         )
         if decision.skip:
             await self._notify_skip(task_name, decision)
-            return False
+            raise HTTPException(status_code=400, detail=decision.reason)
 
         log_file_path = ""
         log_file_handle = None
         try:
             log_file_path, log_file_handle = self._open_log_file(task_id, task_name)
             process = await self._spawn_process(task_name, log_file_handle)
+        except HTTPException:
+            raise
         except Exception as exc:
             self._close_log_handle(log_file_handle)
             print(f"启动任务 '{task_name}' 失败: {exc}")
@@ -158,6 +222,11 @@ class ProcessService:
         self._register_runtime(task_id, task_name, process, log_file_path, log_file_handle)
         print(f"启动任务 '{task_name}' (PID: {process.pid})")
         await self._invoke_hook(self._on_started, task_id)
+        await asyncio.sleep(0.3)
+        await self._drain_finished_process(task_id)
+        if not self.is_running(task_id):
+            error_detail = self._read_last_log_line(log_file_path) or "启动任务失败"
+            raise HTTPException(status_code=400, detail=error_detail)
         return True
 
     async def _notify_skip(self, task_name: str, decision) -> None:
@@ -225,6 +294,16 @@ class ProcessService:
                 log_file.write(f"[{timestamp}] !!! 任务已被终止 !!!\n")
         except Exception as exc:
             print(f"写入任务终止标记失败: {exc}")
+
+    def _read_last_log_line(self, log_path: str | None) -> str:
+        if not log_path or not os.path.exists(log_path):
+            return ""
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="replace") as log_file:
+                lines = [line.strip() for line in log_file.readlines() if line.strip()]
+            return lines[-1] if lines else ""
+        except Exception:
+            return ""
 
     async def stop_task(self, task_id: int) -> bool:
         """停止任务进程"""

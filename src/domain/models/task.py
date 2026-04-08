@@ -213,12 +213,16 @@ class TaskCreate(BaseModel):
     @model_validator(mode="after")
     def validate_decision_mode_payload(self):
         description = str(self.description or "").strip()
+        keyword = str(self.keyword or "").strip()
+        task_name = str(self.task_name or "").strip()
         if self.decision_mode == "ai" and not description:
             raise ValueError("AI 判断模式下，详细需求(description)不能为空。")
         if self.decision_mode == "keyword" and not _has_keyword_rules(self.keyword_rules):
             raise ValueError("关键词判断模式下，至少需要一个关键词。")
         if self.account_strategy == "fixed" and not self.account_state_file:
             raise ValueError("固定账号模式下必须选择账号。")
+        if not task_name or not keyword:
+            raise ValueError("任务名称和关键词不能为空。")
         return self
 
 
@@ -294,9 +298,10 @@ class TaskGenerateRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    task_name: str
-    keyword: str
+    task_name: str = ""
+    keyword: str = ""
     description: Optional[str] = ""
+    user_intent: Optional[str] = None
     analyze_images: bool = True
     personal_only: bool = True
     min_price: Optional[str] = None
@@ -348,11 +353,18 @@ class TaskGenerateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_decision_mode_payload(self):
+        user_intent = str(self.user_intent or "").strip()
         description = str(self.description or "").strip()
-        if self.decision_mode == "ai" and not description:
+        keyword = str(self.keyword or "").strip()
+        task_name = str(self.task_name or "").strip()
+        if self.decision_mode == "ai" and not description and not user_intent:
             raise ValueError("AI 判断模式下，详细需求(description)不能为空。")
-        if self.decision_mode == "keyword" and not _has_keyword_rules(self.keyword_rules):
+        if self.decision_mode == "keyword" and not _has_keyword_rules(self.keyword_rules) and not user_intent:
             raise ValueError("关键词判断模式下，至少需要一个关键词。")
         if self.account_strategy == "fixed" and not self.account_state_file:
             raise ValueError("固定账号模式下必须选择账号。")
+        if user_intent:
+            return self
+        if not task_name or not keyword:
+            raise ValueError("任务名称和关键词不能为空。")
         return self

@@ -4,6 +4,28 @@ interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+function extractErrorMessage(errorData: unknown, fallbackStatus: number) {
+  if (typeof errorData === 'string' && errorData.trim()) return errorData
+  if (errorData && typeof errorData === 'object') {
+    const detail = (errorData as { detail?: unknown }).detail
+    if (typeof detail === 'string' && detail.trim()) return detail
+    if (Array.isArray(detail) && detail.length > 0) {
+      const firstMessage = detail
+        .map((item) => {
+          if (typeof item === 'string') return item
+          if (item && typeof item === 'object' && 'msg' in item) {
+            const msg = (item as { msg?: unknown }).msg
+            return typeof msg === 'string' ? msg : ''
+          }
+          return ''
+        })
+        .find((item) => item)
+      if (firstMessage) return firstMessage
+    }
+  }
+  return `HTTP error! status: ${fallbackStatus}`
+}
+
 export async function http(url: string, options: FetchOptions = {}) {
   const { logout } = useAuth()
   
@@ -39,8 +61,8 @@ export async function http(url: string, options: FetchOptions = {}) {
   }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+    const errorData = await response.json().catch(() => null)
+    throw new Error(extractErrorMessage(errorData, response.status))
   }
 
   // Handle 204 No Content

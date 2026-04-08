@@ -52,6 +52,16 @@ export interface TaskCreateResponse {
   job?: TaskGenerationJob;
 }
 
+export interface TaskDraftResponse {
+  draft: Partial<TaskGenerateRequest> & {
+    task_name?: string;
+    keyword?: string;
+    description?: string;
+    decision_mode?: 'ai' | 'keyword';
+    keyword_rules?: string[];
+  };
+}
+
 // For PATCH requests, all fields are optional
 export type TaskUpdate = Partial<Omit<Task, 'id' | 'next_run_at'>>;
 
@@ -60,6 +70,7 @@ export interface TaskGenerateRequest {
   task_name: string;
   keyword: string;
   description?: string;
+  user_intent?: string;
   analyze_images?: boolean;
   personal_only?: boolean;
   min_price?: string | null;

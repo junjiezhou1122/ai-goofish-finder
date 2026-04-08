@@ -89,6 +89,64 @@ SCHEMA_STATEMENTS = (
         UNIQUE(keyword_slug, run_id, item_id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS keyword_annotations (
+        keyword TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        note TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_keyword_pool (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        keyword TEXT NOT NULL UNIQUE,
+        source TEXT NOT NULL,
+        note TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_snapshot_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        note TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        keyword_count INTEGER NOT NULL,
+        average_score REAL NOT NULL,
+        top_keyword TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_snapshot_keywords (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_id INTEGER NOT NULL,
+        keyword TEXT NOT NULL,
+        opportunity_score INTEGER NOT NULL,
+        recent_items_24h INTEGER NOT NULL,
+        total_items INTEGER NOT NULL,
+        unique_sellers INTEGER NOT NULL,
+        recommended_items INTEGER NOT NULL,
+        signal_hits INTEGER NOT NULL,
+        median_price REAL,
+        price_spread REAL,
+        latest_crawl_time TEXT,
+        FOREIGN KEY (snapshot_id) REFERENCES radar_snapshot_runs(id) ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_keyword_recommendations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        keyword TEXT NOT NULL UNIQUE,
+        reason TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        signal_terms_json TEXT NOT NULL,
+        source_keywords_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_tasks_name ON tasks(task_name)",
     """
     CREATE INDEX IF NOT EXISTS idx_results_filename_crawl
@@ -113,6 +171,15 @@ SCHEMA_STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_snapshots_keyword_item_time
     ON price_snapshots(keyword_slug, item_id, snapshot_time DESC)
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_keyword_pool_keyword ON radar_keyword_pool(keyword)",
+    """
+    CREATE INDEX IF NOT EXISTS idx_radar_snapshot_keywords_snapshot_score
+    ON radar_snapshot_keywords(snapshot_id, opportunity_score DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_radar_recommendations_status_score
+    ON radar_keyword_recommendations(status, score DESC, updated_at DESC)
     """,
 )
 

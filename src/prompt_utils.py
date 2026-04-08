@@ -1,11 +1,13 @@
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
 import aiofiles
 
 from src.infrastructure.external.ai_client import AIClient
+from src.services.ai_response_parser import parse_ai_response_json
 
 # The meta-prompt to instruct the AI
 META_PROMPT_TEMPLATE = """
@@ -33,6 +35,45 @@ META_PROMPT_TEMPLATE = """
 4.  思考并生成针对新商品类型的“一票否决硬性原则”和“危险信号清单”。
 """
 
+TASK_DRAFT_PROMPT_TEMPLATE = """
+你是一个闲鱼监控任务规划助手。用户会给你一句自然语言意图，你需要把它转成一个可执行的监控任务草稿。
+
+你的目标：
+1. 帮用户决定最值得搜索的核心关键词 keyword（必须简短、像闲鱼真实搜索词，不要写成长句）
+2. 生成清晰的任务名 task_name
+3. 判断更适合用 ai 还是 keyword 模式
+4. 如果适合 keyword 模式，给出 3-6 个 keyword_rules
+5. 补全一份简洁但可执行的 description
+6. 给出合理默认值：max_pages / new_publish_option / personal_only / free_shipping / analyze_images
+
+约束：
+- keyword 必须是一个最核心、最像搜索框输入的词
+- task_name 要短，适合列表展示
+- 如果用户需求偏“找某类商品机会”，优先 ai 模式
+- 如果用户需求偏“找有明显信号词的商品”，可以用 keyword 模式
+- keyword_rules 只在 keyword 模式下返回，ai 模式返回空数组
+- new_publish_option 只能是: "最新" / "1天内" / "3天内" / "7天内" / "14天内" / ""
+- 输出必须是 JSON，不要输出解释
+
+返回 JSON，字段如下：
+{{
+  "task_name": "",
+  "keyword": "",
+  "description": "",
+  "decision_mode": "ai" | "keyword",
+  "keyword_rules": [],
+  "max_pages": 3,
+  "new_publish_option": "",
+  "personal_only": true,
+  "free_shipping": true,
+  "analyze_images": true
+}}
+
+用户意图：
+{user_intent}
+"""
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 ProgressCallback = Callable[[str, str], Awaitable[None]]
 
 
@@ -45,9 +86,17 @@ async def _report_progress(
         await progress_callback(step_key, message)
 
 
+def _resolve_reference_file_path(reference_file_path: str) -> Path:
+    candidate = Path(reference_file_path)
+    if candidate.is_absolute():
+        return candidate
+    return BASE_DIR / candidate
+
+
 def _read_reference_text(reference_file_path: str) -> str:
+    resolved_path = _resolve_reference_file_path(reference_file_path)
     try:
-        with open(reference_file_path, "r", encoding="utf-8") as file:
+        with open(resolved_path, "r", encoding="utf-8") as file:
             return file.read()
     except FileNotFoundError:
         raise FileNotFoundError(f"参考文件未找到: {reference_file_path}")
@@ -113,6 +162,35 @@ async def generate_criteria(
 
         await _report_progress(progress_callback, "llm", "正在调用 AI 生成分析标准。")
         return await _request_generated_text(ai_client, prompt)
+    except Exception as exc:
+        active_error = exc
+        raise
+    finally:
+        await _close_ai_client(ai_client, active_error)
+
+
+async def generate_task_draft(
+    user_intent: str,
+) -> dict:
+    ai_client = AIClient()
+    active_error: BaseException | None = None
+    try:
+        if not ai_client.is_available():
+            ai_client.refresh()
+        if not ai_client.is_available():
+            raise RuntimeError("AI客户端未初始化，无法生成任务草稿。请检查.env配置。")
+
+        prompt = TASK_DRAFT_PROMPT_TEMPLATE.format(user_intent=user_intent.strip())
+        response_text = await ai_client._call_ai(
+            [{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_output_tokens=800,
+            enable_json_output=True,
+        )
+        draft = parse_ai_response_json(response_text)
+        if not isinstance(draft, dict):
+            raise ValueError("AI 返回的任务草稿格式无效。")
+        return draft
     except Exception as exc:
         active_error = exc
         raise

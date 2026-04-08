@@ -34,6 +34,7 @@ const isProgressOpen = ref(false)
 const isSubmitting = ref(false)
 const defaultAccountPath = ref('')
 const defaultValues = ref({})
+const draftSource = ref('')
 const {
   activeJob,
   pollingError,
@@ -80,6 +81,7 @@ watch(
     const accountName = typeof route.query.account === 'string' ? route.query.account : ''
     defaultAccountPath.value = accountName ? resolveAccountPath(accountName) : ''
     defaultValues.value = parseTaskFormDefaults(route.query)
+    draftSource.value = typeof route.query.source === 'string' ? route.query.source : ''
     if (route.query.create === '1') {
       isFormOpen.value = true
     }
@@ -129,6 +131,9 @@ watch(pollingError, (value) => {
     <DialogContent class="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{{ t('tasks.createDialog.title') }}</DialogTitle>
+        <p v-if="draftSource" class="text-sm text-slate-500">
+          {{ t(`tasks.createDialog.sourceHint.${draftSource}`) }}
+        </p>
       </DialogHeader>
       <TaskForm
         mode="create"

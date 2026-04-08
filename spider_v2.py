@@ -6,8 +6,9 @@ import json
 import signal
 import contextlib
 import re
+from pathlib import Path
 
-from src.config import STATE_FILE
+from src.config import STATE_FILE, PROJECT_ROOT
 from src.infrastructure.persistence.sqlite_task_repository import SqliteTaskRepository
 from src.scraper import scrape_xianyu
 
@@ -85,9 +86,12 @@ async def main():
 
     def has_any_state_file() -> bool:
         state_dir = os.getenv("ACCOUNT_STATE_DIR", "state").strip().strip('"').strip("'")
-        if os.path.isdir(state_dir):
-            for name in os.listdir(state_dir):
-                if name.endswith(".json"):
+        candidate = Path(state_dir)
+        if not candidate.is_absolute():
+            candidate = PROJECT_ROOT / candidate
+        if candidate.is_dir():
+            for path in candidate.iterdir():
+                if path.suffix == ".json":
                     return True
         return False
 
@@ -160,7 +164,25 @@ async def main():
     active_task_configs = []
     if args.task_name:
         # 如果指定了任务名称，只查找该任务
-        task_found = next((task for task in tasks_config if task.get('task_name') == args.task_name), None)
+        normalized_arg_task_name = str(args.task_name).strip()
+        task_found = next(
+            (
+                task
+                for task in tasks_config
+                if str(task.get('task_name') or '').strip() == normalized_arg_task_name
+            ),
+            None,
+        )
+        if task_found is None:
+            task_found = next(
+                (
+                    task
+                    for task in tasks_config
+                    if str(task.get('task_name') or '').strip().replace(" ", "")
+                    == normalized_arg_task_name.replace(" ", "")
+                ),
+                None,
+            )
         if task_found:
             if task_found.get("enabled", False):
                 active_task_configs.append(task_found)

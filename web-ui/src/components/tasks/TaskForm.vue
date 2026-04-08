@@ -2,6 +2,8 @@
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Task, TaskGenerateRequest } from '@/types/task.d.ts'
+import { generateTaskDraft } from '@/api/tasks'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -34,6 +36,8 @@ const accountStrategy = ref<'auto' | 'fixed' | 'rotate'>('auto')
 const selectedAccountStateFile = ref(AUTO_ACCOUNT_VALUE)
 const keywordRulesInput = ref('')
 const cronMode = ref<'preset' | 'custom'>('preset')
+const userIntentInput = ref('')
+const isGeneratingDraft = ref(false)
 
 // 常用 cron 预设选项
 const cronPresets = computed(() => [
@@ -115,6 +119,7 @@ watch(() => [props.mode, props.initialData, props.defaultValues, props.defaultAc
       decision_mode: defaultValues.decision_mode || props.initialData.decision_mode || 'ai',
     }
     keywordRulesInput.value = (defaultValues.keyword_rules || props.initialData.keyword_rules || []).join('\n')
+    userIntentInput.value = ''
     // 编辑模式下，根据 cron 值判断模式
     const cronVal = defaultValues.cron ?? props.initialData.cron ?? ''
     cronMode.value = isPresetCronValue(cronVal) ? 'preset' : 'custom'
@@ -147,6 +152,7 @@ watch(() => [props.mode, props.initialData, props.defaultValues, props.defaultAc
       form.value.new_publish_option = '__none__'
     }
     keywordRulesInput.value = ''
+    userIntentInput.value = ''
     if (defaultValues.keyword_rules && defaultValues.keyword_rules.length > 0) {
       keywordRulesInput.value = defaultValues.keyword_rules.join('\n')
     }
@@ -183,8 +189,46 @@ function handleAccountStateFileChange(event: Event) {
   selectedAccountStateFile.value = (event.target as HTMLSelectElement).value || AUTO_ACCOUNT_VALUE
 }
 
+async function handleGenerateDraft() {
+  const intent = String(userIntentInput.value || '').trim()
+  if (!intent) {
+    toast({
+      title: t('tasks.form.validation.incomplete'),
+      description: t('tasks.form.validation.userIntentRequired'),
+      variant: 'destructive',
+    })
+    return
+  }
+
+  isGeneratingDraft.value = true
+  try {
+    const result = await generateTaskDraft(intent)
+    const draft = result.draft || {}
+    form.value.task_name = draft.task_name || form.value.task_name
+    form.value.keyword = draft.keyword || form.value.keyword
+    form.value.description = draft.description || form.value.description
+    form.value.decision_mode = draft.decision_mode || form.value.decision_mode
+    form.value.max_pages = draft.max_pages ?? form.value.max_pages
+    form.value.new_publish_option = draft.new_publish_option || form.value.new_publish_option || '__none__'
+    form.value.personal_only = draft.personal_only ?? form.value.personal_only
+    form.value.free_shipping = draft.free_shipping ?? form.value.free_shipping
+    form.value.analyze_images = draft.analyze_images ?? form.value.analyze_images
+    keywordRulesInput.value = Array.isArray(draft.keyword_rules) ? draft.keyword_rules.join('\n') : keywordRulesInput.value
+    toast({ title: t('tasks.toasts.draftGenerated') })
+  } catch (e) {
+    toast({
+      title: t('tasks.toasts.draftGenerateFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  } finally {
+    isGeneratingDraft.value = false
+  }
+}
+
 function handleSubmit() {
-  if (!form.value.task_name || !form.value.keyword) {
+  const hasIntent = props.mode === 'create' && !!String(userIntentInput.value || '').trim()
+  if (!hasIntent && (!form.value.task_name || !form.value.keyword)) {
     toast({
       title: t('tasks.form.validation.incomplete'),
       description: t('tasks.form.validation.nameAndKeywordRequired'),
@@ -194,7 +238,7 @@ function handleSubmit() {
   }
 
   const decisionMode = form.value.decision_mode || 'ai'
-  if (decisionMode === 'ai' && !String(form.value.description || '').trim()) {
+  if (!hasIntent && decisionMode === 'ai' && !String(form.value.description || '').trim()) {
     toast({
       title: t('tasks.form.validation.incomplete'),
       description: t('tasks.form.validation.aiDescriptionRequired'),
@@ -249,6 +293,7 @@ function handleSubmit() {
   submitData.account_strategy = currentAccountStrategy
   submitData.analyze_images = submitData.analyze_images !== false
   submitData.keyword_rules = decisionMode === 'keyword' ? keywordRules : []
+  submitData.user_intent = hasIntent ? String(userIntentInput.value || '').trim() : undefined
   if (decisionMode === 'keyword' && !submitData.description) {
     submitData.description = ''
   }
@@ -260,13 +305,32 @@ function handleSubmit() {
 <template>
   <form id="task-form" @submit.prevent="handleSubmit">
     <div class="grid gap-6 py-4">
+      <div v-if="mode === 'create'" class="grid gap-2 sm:grid-cols-4 sm:gap-4">
+        <Label for="user-intent" class="pt-1 sm:pt-2 sm:text-right">{{ t('tasks.form.userIntent') }}</Label>
+        <div class="space-y-2 sm:col-span-3">
+          <Textarea
+            id="user-intent"
+            v-model="userIntentInput"
+            class="min-h-[100px]"
+            :placeholder="t('tasks.form.userIntentPlaceholder')"
+          />
+          <div class="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" :disabled="isGeneratingDraft" @click="handleGenerateDraft">
+              {{ isGeneratingDraft ? t('tasks.form.generatingDraft') : t('tasks.form.generateDraft') }}
+            </Button>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            {{ t('tasks.form.userIntentHint') }}
+          </div>
+        </div>
+      </div>
       <div class="grid gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
         <Label for="task-name" class="sm:text-right">{{ t('tasks.form.taskName') }}</Label>
-        <Input id="task-name" v-model="form.task_name" class="sm:col-span-3" :placeholder="t('tasks.form.taskNamePlaceholder')" required />
+        <Input id="task-name" v-model="form.task_name" class="sm:col-span-3" :placeholder="t('tasks.form.taskNamePlaceholder')" :required="!userIntentInput.trim()" />
       </div>
       <div class="grid gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
         <Label for="keyword" class="sm:text-right">{{ t('tasks.form.keyword') }}</Label>
-        <Input id="keyword" v-model="form.keyword" class="sm:col-span-3" :placeholder="t('tasks.form.keywordPlaceholder')" required />
+        <Input id="keyword" v-model="form.keyword" class="sm:col-span-3" :placeholder="t('tasks.form.keywordPlaceholder')" :required="!userIntentInput.trim()" />
       </div>
       <div class="grid gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
         <Label class="sm:text-right">{{ t('tasks.form.decisionMode') }}</Label>

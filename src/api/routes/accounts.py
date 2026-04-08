@@ -4,11 +4,14 @@
 import json
 import os
 import re
+from pathlib import Path
 import aiofiles
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 from src.infrastructure.config.env_manager import env_manager
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
@@ -35,7 +38,11 @@ def _strip_quotes(value: str) -> str:
 
 def _state_dir() -> str:
     raw = env_manager.get_value("ACCOUNT_STATE_DIR", "state") or "state"
-    return _strip_quotes(raw.strip())
+    path = _strip_quotes(raw.strip()) or "state"
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = PROJECT_ROOT / candidate
+    return str(candidate)
 
 
 def _ensure_state_dir(path: str) -> None:

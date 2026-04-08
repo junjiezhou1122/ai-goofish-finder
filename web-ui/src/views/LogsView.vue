@@ -61,7 +61,7 @@ watch(tasks, (list) => {
 watch(selectedTaskId, (taskId) => {
   const resolvedTaskId = taskId ? Number(taskId) : null
   setTaskId(resolvedTaskId)
-  if (resolvedTaskId) {
+  if (resolvedTaskId !== null) {
     loadLatest(50)
   }
 })
@@ -124,7 +124,7 @@ async function handleClearLogs() {
       </div>
       
       <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end">
-        <Button variant="outline" size="sm" :disabled="!selectedTaskId" @click="fetchLogs">
+        <Button variant="outline" size="sm" :disabled="selectedTaskId === ''" @click="fetchLogs">
           {{ t('common.refresh') }}
         </Button>
 
