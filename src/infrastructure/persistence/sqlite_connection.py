@@ -90,6 +90,120 @@ SCHEMA_STATEMENTS = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS radar_directions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        seed_topic TEXT NOT NULL,
+        user_goal TEXT,
+        preferred_variants_json TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        status TEXT NOT NULL,
+        expansion_config_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_keyword_candidates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction_id INTEGER NOT NULL,
+        keyword TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_detail TEXT,
+        lifecycle_status TEXT NOT NULL,
+        variant_type TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(direction_id, keyword),
+        FOREIGN KEY (direction_id) REFERENCES radar_directions(id) ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_candidate_evidence (
+        candidate_id INTEGER PRIMARY KEY,
+        sample_count INTEGER NOT NULL,
+        recent_items_24h INTEGER NOT NULL,
+        previous_items_24h INTEGER NOT NULL,
+        unique_sellers INTEGER NOT NULL,
+        recommended_items INTEGER NOT NULL,
+        ai_recommended_items INTEGER NOT NULL,
+        median_price REAL,
+        price_spread REAL,
+        signal_hits INTEGER NOT NULL,
+        top_signals_json TEXT NOT NULL,
+        latest_crawl_time TEXT,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (candidate_id) REFERENCES radar_keyword_candidates(id) ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_opportunity_states (
+        candidate_id INTEGER PRIMARY KEY,
+        heat_score INTEGER NOT NULL,
+        momentum_score INTEGER NOT NULL,
+        commercial_score INTEGER NOT NULL,
+        competition_score INTEGER NOT NULL,
+        confidence_score INTEGER NOT NULL,
+        opportunity_score INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        suggested_action TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (candidate_id) REFERENCES radar_keyword_candidates(id) ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_candidate_recommendations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction_id INTEGER NOT NULL,
+        candidate_id INTEGER NOT NULL UNIQUE,
+        keyword TEXT NOT NULL,
+        variant_type TEXT,
+        reason TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        recommended_action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (direction_id) REFERENCES radar_directions(id) ON DELETE CASCADE,
+        FOREIGN KEY (candidate_id) REFERENCES radar_keyword_candidates(id) ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_experiments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction_id INTEGER NOT NULL,
+        candidate_id INTEGER,
+        recommendation_id INTEGER,
+        task_id INTEGER,
+        task_name TEXT,
+        keyword TEXT NOT NULL,
+        status TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (direction_id) REFERENCES radar_directions(id) ON DELETE CASCADE,
+        FOREIGN KEY (candidate_id) REFERENCES radar_keyword_candidates(id) ON DELETE SET NULL,
+        FOREIGN KEY (recommendation_id) REFERENCES radar_candidate_recommendations(id) ON DELETE SET NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS radar_learning_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction_id INTEGER NOT NULL,
+        candidate_id INTEGER,
+        recommendation_id INTEGER,
+        task_id INTEGER,
+        feedback_type TEXT NOT NULL,
+        feedback_value TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (direction_id) REFERENCES radar_directions(id) ON DELETE CASCADE,
+        FOREIGN KEY (candidate_id) REFERENCES radar_keyword_candidates(id) ON DELETE SET NULL,
+        FOREIGN KEY (recommendation_id) REFERENCES radar_candidate_recommendations(id) ON DELETE SET NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS keyword_annotations (
         keyword TEXT PRIMARY KEY,
         status TEXT NOT NULL,
@@ -171,6 +285,28 @@ SCHEMA_STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_snapshots_keyword_item_time
     ON price_snapshots(keyword_slug, item_id, snapshot_time DESC)
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_radar_directions_status ON radar_directions(status)",
+    "CREATE INDEX IF NOT EXISTS idx_radar_directions_updated_at ON radar_directions(updated_at DESC)",
+    """
+    CREATE INDEX IF NOT EXISTS idx_radar_keyword_candidates_direction_status
+    ON radar_keyword_candidates(direction_id, lifecycle_status, updated_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_radar_opportunity_states_score
+    ON radar_opportunity_states(opportunity_score DESC, updated_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_radar_candidate_recommendations_direction_score
+    ON radar_candidate_recommendations(direction_id, score DESC, updated_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_radar_experiments_direction_created
+    ON radar_experiments(direction_id, created_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_radar_learning_feedback_direction_created
+    ON radar_learning_feedback(direction_id, created_at DESC)
     """,
     "CREATE INDEX IF NOT EXISTS idx_keyword_pool_keyword ON radar_keyword_pool(keyword)",
     """

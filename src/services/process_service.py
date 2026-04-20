@@ -42,6 +42,9 @@ class ProcessService:
         self.failure_guard = FailureGuard()
         self._on_started: LifecycleHook | None = None
         self._on_stopped: LifecycleHook | None = None
+        # task_id → experiment_id 映射，用于任务完成后通知 Finder 实验服务
+        self._task_experiment_map: Dict[int, int] = {}
+        self._on_experiment_done: Callable[[int], Awaitable[None] | None] | None = None
 
     def set_lifecycle_hooks(
         self,
@@ -51,6 +54,17 @@ class ProcessService:
     ) -> None:
         self._on_started = on_started
         self._on_stopped = on_stopped
+
+    def set_task_experiment(self, task_id: int, experiment_id: int) -> None:
+        """将 task_id 和 experiment_id 关联，用于任务完成后通知 Finder。"""
+        self._task_experiment_map[task_id] = experiment_id
+
+    def clear_task_experiment(self, task_id: int) -> None:
+        self._task_experiment_map.pop(task_id, None)
+
+    def set_experiment_done_hook(self, hook: Callable[[int], Awaitable[None] | None] | None) -> None:
+        """设置任务执行完成后的 Finder 实验回调（接收 experiment_id）。"""
+        self._on_experiment_done = hook
 
     async def _invoke_hook(self, hook: LifecycleHook | None, task_id: int) -> None:
         if hook is None:
@@ -278,6 +292,15 @@ class ProcessService:
         self.task_names.pop(task_id, None)
         self._close_log_handle(self.log_handles.pop(task_id, None))
         self.exit_watchers.pop(task_id, None)
+        self._cleanup_experiment(task_id)
+
+    def _cleanup_experiment(self, task_id: int) -> None:
+        """从映射中清除 experiment 关联，并触发 Finder 回调。"""
+        experiment_id = self._task_experiment_map.pop(task_id, None)
+        if experiment_id is not None and self._on_experiment_done is not None:
+            result = self._on_experiment_done(experiment_id)
+            if asyncio.iscoroutine(result):
+                asyncio.create_task(result)
 
     def _close_log_handle(self, log_handle: TextIO | None) -> None:
         if log_handle is None:

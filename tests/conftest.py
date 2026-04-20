@@ -66,6 +66,15 @@ class FakeProcessService:
         self._on_started = on_started
         self._on_stopped = on_stopped
 
+    def set_task_experiment(self, task_id: int, experiment_id: int):
+        pass
+
+    def clear_task_experiment(self, task_id: int):
+        pass
+
+    def set_experiment_done_hook(self, hook):
+        pass
+
     async def start_task(self, task_id: int, task_name: str) -> bool:
         self.started.append((task_id, task_name))
         if self._on_started:

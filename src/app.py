@@ -10,6 +10,11 @@ from fastapi.templating import Jinja2Templates
 
 from src.api.routes import (
     dashboard,
+    direction_candidates,
+    direction_experiments,
+    direction_learning,
+    direction_recommendations,
+    directions,
     tasks,
     logs,
     settings,
@@ -30,6 +35,7 @@ from src.services.process_service import ProcessService
 from src.services.scheduler_service import SchedulerService
 from src.services.task_log_cleanup_service import cleanup_task_logs
 from src.services.task_generation_service import TaskGenerationService
+from src.services.direction_experiment_service import DirectionExperimentService
 from src.infrastructure.persistence.sqlite_bootstrap import bootstrap_sqlite_storage
 from src.infrastructure.persistence.sqlite_task_repository import SqliteTaskRepository
 from src.infrastructure.config.settings import settings as app_settings
@@ -44,6 +50,13 @@ DIST_ASSETS_DIR = DIST_DIR / "assets"
 process_service = ProcessService()
 scheduler_service = SchedulerService(process_service)
 task_generation_service = TaskGenerationService()
+experiment_service = DirectionExperimentService()
+
+# 任务执行完成后，通知 Finder 实验服务更新状态
+async def _on_experiment_done(experiment_id: int) -> None:
+    await experiment_service.report_task_result(experiment_id)
+
+process_service.set_experiment_done_hook(_on_experiment_done)
 
 
 async def _sync_task_runtime_status(task_id: int, is_running: bool) -> None:
@@ -117,6 +130,11 @@ app.include_router(settings.router)
 app.include_router(prompts.router)
 app.include_router(results.router)
 app.include_router(radar.router)
+app.include_router(directions.router)
+app.include_router(direction_candidates.router)
+app.include_router(direction_recommendations.router)
+app.include_router(direction_experiments.router)
+app.include_router(direction_learning.router)
 app.include_router(login_state.router)
 app.include_router(websocket.router)
 app.include_router(accounts.router)

@@ -24,6 +24,8 @@ LEGACY_PRICE_HISTORY_DIR = "price_history"
 TASKS_BOOTSTRAP_KEY = "bootstrap:legacy_tasks"
 RESULTS_BOOTSTRAP_KEY = "bootstrap:legacy_results"
 SNAPSHOTS_BOOTSTRAP_KEY = "bootstrap:legacy_price_snapshots"
+SCHEMA_VERSION_KEY = "schema:version"
+CURRENT_SCHEMA_VERSION = 2
 
 
 def bootstrap_sqlite_storage(
@@ -42,10 +44,42 @@ def bootstrap_sqlite_storage(
             return
         with sqlite_connection(resolved_db_path) as conn:
             init_schema(conn)
+            _run_migrations(conn)
             _import_tasks_if_needed(conn, legacy_config_file)
             _import_results_if_needed(conn, legacy_result_dir)
             _import_price_snapshots_if_needed(conn, legacy_price_history_dir)
         BOOTSTRAPPED_DATABASES.add(resolved_db_path)
+
+
+def _run_migrations(conn) -> None:
+    """执行 schema 增量迁移，只在需要时 ALTER 表。"""
+    row = conn.execute(
+        "SELECT value FROM app_metadata WHERE key = ?",
+        (SCHEMA_VERSION_KEY,),
+    ).fetchone()
+    version = int(row["value"]) if row and row["value"] else 1
+
+    if version >= CURRENT_SCHEMA_VERSION:
+        return
+
+    if version < 2:
+        # Migration 1 → 2: Finder 2.0 新字段
+        _safe_add_column(conn, "radar_directions", "expansion_config_json", "TEXT")
+        _safe_add_column(conn, "radar_candidate_recommendations", "variant_type", "TEXT")
+        conn.execute(
+            "INSERT OR REPLACE INTO app_metadata(key, value) VALUES (?, ?)",
+            (SCHEMA_VERSION_KEY, "2"),
+        )
+
+    conn.commit()
+
+
+def _safe_add_column(conn, table: str, column: str, col_type: str) -> None:
+    """安全添加列（如果列已存在则跳过）。"""
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+    except Exception:
+        pass  # 列已存在，忽略
 
 
 def _table_is_empty(conn, table_name: str) -> bool:

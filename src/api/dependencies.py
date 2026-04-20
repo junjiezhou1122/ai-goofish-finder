@@ -4,12 +4,20 @@ FastAPI 依赖注入
 """
 from fastapi import Depends
 from src.services.task_service import TaskService
+from src.services.direction_candidate_service import DirectionCandidateService
+from src.services.direction_candidate_insight_service import DirectionCandidateInsightService
+from src.services.direction_recommendation_service import DirectionRecommendationService
+from src.services.direction_experiment_service import DirectionExperimentService
+from src.services.direction_learning_service import DirectionLearningService
+from src.services.direction_service import DirectionService
 from src.services.notification_service import NotificationService, build_notification_service
 from src.services.ai_service import AIAnalysisService
 from src.services.process_service import ProcessService
 from src.services.scheduler_service import SchedulerService
 from src.services.task_generation_service import TaskGenerationService
+from src.infrastructure.persistence.sqlite_direction_candidate_repository import SqliteDirectionCandidateRepository
 from src.infrastructure.persistence.sqlite_task_repository import SqliteTaskRepository
+from src.infrastructure.persistence.sqlite_direction_repository import SqliteDirectionRepository
 from src.infrastructure.external.ai_client import AIClient
 
 
@@ -43,6 +51,39 @@ def get_task_service() -> TaskService:
     repository = SqliteTaskRepository()
     return TaskService(repository)
 
+
+
+def get_direction_service() -> DirectionService:
+    """获取方向管理服务实例"""
+    repository = SqliteDirectionRepository()
+    return DirectionService(repository)
+
+
+def get_direction_candidate_service() -> DirectionCandidateService:
+    """获取方向候选词服务实例"""
+    candidate_repository = SqliteDirectionCandidateRepository()
+    direction_repository = SqliteDirectionRepository()
+    return DirectionCandidateService(candidate_repository, direction_repository)
+
+
+def get_direction_candidate_insight_service() -> DirectionCandidateInsightService:
+    """获取方向候选词证据与评分服务实例"""
+    return DirectionCandidateInsightService()
+
+
+def get_direction_recommendation_service() -> DirectionRecommendationService:
+    """获取方向候选词推荐服务实例"""
+    return DirectionRecommendationService()
+
+
+def get_direction_experiment_service() -> DirectionExperimentService:
+    """获取方向实验服务实例"""
+    return DirectionExperimentService()
+
+
+def get_direction_learning_service() -> DirectionLearningService:
+    """获取方向学习摘要服务实例"""
+    return DirectionLearningService()
 
 def get_notification_service() -> NotificationService:
     """获取通知服务实例"""

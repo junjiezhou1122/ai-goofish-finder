@@ -122,6 +122,10 @@ docker compose up -d
 
 
 
+## 设计文档
+
+- Finder 2.0 关键词自动发现引擎设计方案：[`docs/finder-2.0-design.md`](docs/finder-2.0-design.md)
+
 ## 开发者开发
 
 ### 环境要求

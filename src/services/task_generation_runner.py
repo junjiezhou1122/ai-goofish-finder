@@ -8,9 +8,12 @@ import aiofiles
 
 from src.domain.models.task import TaskCreate, TaskGenerateRequest
 from src.prompt_utils import generate_criteria
+from src.services.direction_experiment_service import DirectionExperimentService
+from src.services.direction_recommendation_service import DirectionRecommendationService
 from src.services.scheduler_service import SchedulerService
 from src.services.task_generation_service import TaskGenerationService
 from src.services.task_service import TaskService
+from src.services.process_service import ProcessService
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROMPTS_DIR = BASE_DIR / "prompts"
@@ -81,6 +84,9 @@ async def run_ai_generation_job(
     task_service: TaskService,
     scheduler_service: SchedulerService,
     generation_service: TaskGenerationService,
+    experiment_service: DirectionExperimentService | None = None,
+    recommendation_service: DirectionRecommendationService | None = None,
+    process_service: ProcessService | None = None,
 ) -> None:
     output_filename = build_criteria_filename(req.keyword)
     try:
@@ -116,6 +122,18 @@ async def run_ai_generation_job(
         )
         task = await task_service.create_task(build_task_create(req, output_filename))
         await reload_scheduler(task_service, scheduler_service)
+        if experiment_service and req.finder_direction_id:
+            experiment = await experiment_service.create_task_experiment(
+                direction_id=req.finder_direction_id,
+                candidate_id=req.finder_candidate_id,
+                recommendation_id=req.finder_recommendation_id,
+                task=task,
+            )
+            # 注册映射：任务完成后 → 通知 Finder 实验服务
+            if process_service and experiment.get("id"):
+                process_service.set_task_experiment(task.id, int(experiment["id"]))
+        if recommendation_service and req.finder_recommendation_id:
+            await recommendation_service.update_recommendation_status(req.finder_recommendation_id, "accepted")
         await generation_service.complete(job_id, task, f"任务“{req.task_name}”创建完成。")
     except Exception as exc:
         if os.path.exists(output_filename):
