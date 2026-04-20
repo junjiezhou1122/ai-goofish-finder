@@ -38,8 +38,25 @@ async def refresh_direction_recommendations(
     insight_service: DirectionCandidateInsightService = Depends(get_direction_candidate_insight_service),
     recommendation_service: DirectionRecommendationService = Depends(get_direction_recommendation_service),
 ):
+    """刷新推荐：先重新计算候选词洞察（从 result_items 拉取最新市场数据），再生成推荐。"""
     candidates = await candidate_service.list_candidates(direction_id)
     enriched = await insight_service.refresh_direction_candidates(direction_id, candidates)
+    items = await recommendation_service.refresh_direction_recommendations(direction_id, enriched)
+    return {"items": items, "count": len(items)}
+
+
+@router.post("/directions/{direction_id}/generate-recommendations", response_model=dict)
+async def generate_recommendations_from_current_state(
+    direction_id: int,
+    candidate_service: DirectionCandidateService = Depends(get_direction_candidate_service),
+    insight_service: DirectionCandidateInsightService = Depends(get_direction_candidate_insight_service),
+    recommendation_service: DirectionRecommendationService = Depends(get_direction_recommendation_service),
+):
+    """直接从当前 DB 状态生成推荐（跳过 result_items 洞察刷新）。
+    用于：手动已写入 opportunity_states 后直接触发推荐，或在无 result_items 数据时生成推荐。
+    """
+    candidates = await candidate_service.list_candidates(direction_id)
+    enriched = await insight_service.list_direction_candidates(direction_id, candidates)
     items = await recommendation_service.refresh_direction_recommendations(direction_id, enriched)
     return {"items": items, "count": len(items)}
 
