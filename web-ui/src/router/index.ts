@@ -41,6 +41,12 @@ const routes = [
         meta: { titleKey: 'routes.results', requiresAuth: true },
       },
       {
+        path: 'directions',
+        name: 'Directions',
+        component: () => import('@/views/DirectionsView.vue'),
+        meta: { titleKey: 'routes.directions', requiresAuth: true },
+      },
+      {
         path: 'radar',
         name: 'Radar',
         component: () => import('@/views/RadarView.vue'),

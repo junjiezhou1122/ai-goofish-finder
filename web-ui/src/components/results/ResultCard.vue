@@ -10,6 +10,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import Badge from '@/components/ui/badge/Badge.vue'
+import { toast } from '@/components/ui/toast'
+import * as radarApi from '@/api/radar'
 import { ExternalLink, TrendingUp, TrendingDown, Info, User, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-vue-next'
 import { formatDateTime } from '@/i18n'
 
@@ -18,6 +20,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{
+  keywordAdded: []
+}>()
 const { t } = useI18n()
 
 const info = props.item.商品信息
@@ -39,6 +44,77 @@ const crawlTime = props.item.爬取时间
 const matchScore = ai?.value_score ?? 0
 
 const expanded = ref(false)
+const sellerItemsExpanded = ref(false)
+const isExtractingKeywords = ref(false)
+
+const sellerItems = computed<any[]>(() => {
+  const items = seller?.['卖家发布的商品列表']
+  return Array.isArray(items) ? items.slice(0, 6) : []
+})
+
+const sellerKeywordSuggestions = computed(() => {
+  const seen = new Set<string>()
+  const signals = ['源码', '教程', '模板', '脚本', '代搭建', '代配置', '自动发货', '秒发', '合集']
+  const suggestions: string[] = []
+
+  const collect = (raw: unknown) => {
+    const title = String(raw || '').trim()
+    if (!title) return
+
+    const normalized = title.replace(/\s+/g, ' ').trim()
+    for (const signal of signals) {
+      if (!normalized.includes(signal)) continue
+      const compact = normalized
+        .replace(/[【】\[\]()（）|｜]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (compact.length < 2 || compact.length > 30) continue
+      if (seen.has(compact)) continue
+      seen.add(compact)
+      suggestions.push(compact)
+      break
+    }
+  }
+
+  collect(info.商品标题)
+  sellerItems.value.forEach((item) => collect(sellerItemTitle(item)))
+  return suggestions.slice(0, 4)
+})
+
+function sellerItemTitle(item: any) {
+  return item?.title || item?.itemTitle || item?.name || '—'
+}
+
+function sellerItemPrice(item: any) {
+  return item?.price || item?.priceText || item?.displayPrice || item?.fishPrice || ''
+}
+
+function sellerItemLink(item: any) {
+  return item?.targetUrl || item?.itemUrl || item?.url || item?.link || ''
+}
+
+async function addSuggestedKeyword(keyword: string) {
+  isExtractingKeywords.value = true
+  try {
+    await radarApi.createRadarKeywordPoolItem({
+      keyword,
+      source: 'recommendation',
+      note: t('results.card.sellerKeywordNote', {
+        seller: seller.卖家昵称 || info.卖家昵称 || t('results.card.anonymous'),
+      }),
+    })
+    toast({ title: t('results.card.keywordAdded') })
+    emit('keywordAdded')
+  } catch (error) {
+    toast({
+      title: t('results.card.keywordAddFailed'),
+      description: error instanceof Error ? error.message : t('common.error'),
+      variant: 'destructive',
+    })
+  } finally {
+    isExtractingKeywords.value = false
+  }
+}
 </script>
 
 <template>
@@ -140,6 +216,53 @@ const expanded = ref(false)
           <div class="text-sm font-bold text-slate-700">
             {{ priceInsight.min_price ? `¥${priceInsight.min_price}` : '—' }}
           </div>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between text-left text-xs font-bold text-slate-600 hover:text-slate-900"
+          @click="sellerItemsExpanded = !sellerItemsExpanded"
+        >
+          <span>{{ sellerItemsExpanded ? t('results.card.collapseSellerItems') : t('results.card.expandSellerItems') }}</span>
+          <span class="text-slate-400">{{ sellerItems.length }}</span>
+        </button>
+        <div v-if="sellerItemsExpanded" class="mt-3 space-y-3">
+          <div v-if="sellerKeywordSuggestions.length > 0" class="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-primary/80">
+              {{ t('results.card.sellerKeywordSuggestions') }}
+            </p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button
+                v-for="keyword in sellerKeywordSuggestions"
+                :key="keyword"
+                type="button"
+                class="rounded-full border border-primary/20 bg-white px-2.5 py-1 text-[11px] font-medium text-primary transition hover:border-primary/40 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="isExtractingKeywords"
+                @click="addSuggestedKeyword(keyword)"
+              >
+                {{ keyword }}
+              </button>
+            </div>
+          </div>
+          <div v-if="sellerItems.length === 0" class="text-xs text-slate-500">
+            {{ t('results.card.sellerItemsEmpty') }}
+          </div>
+          <a
+            v-for="(sellerItem, index) in sellerItems"
+            :key="sellerItemLink(sellerItem) || `${info.商品ID}-${index}`"
+            :href="sellerItemLink(sellerItem) || undefined"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs hover:border-primary/40 hover:bg-primary/5"
+          >
+            <div class="min-w-0">
+              <p class="truncate font-medium text-slate-800">{{ sellerItemTitle(sellerItem) }}</p>
+              <p class="mt-1 text-slate-500">{{ t('results.card.openSellerItem') }}</p>
+            </div>
+            <span class="shrink-0 font-semibold text-rose-600">{{ sellerItemPrice(sellerItem) || '—' }}</span>
+          </a>
         </div>
       </div>
     </CardContent>

@@ -27,6 +27,7 @@ const enUSExtra = {
         radar: 'This draft comes from a radar keyword and is tuned for validating heat and demand.',
         recommendation: 'This draft comes from a recommendation and is tuned for quickly testing a new angle.',
         pool: 'This draft comes from the keyword pool and keeps your note as task context.',
+        finder: 'This draft comes from a Finder recommendation and is tuned for quickly validating whether it deserves long-term monitoring.',
       },
     },
     editDialog: { title: 'Edit Task: {task}', save: 'Save Changes' },

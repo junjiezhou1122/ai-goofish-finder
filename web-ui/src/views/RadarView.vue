@@ -2,9 +2,9 @@
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { BarChart3, History, Lightbulb, Plus, RefreshCw, TrendingUp, Zap } from 'lucide-vue-next'
+import { BarChart3, Lightbulb, Plus, RefreshCw, TrendingUp, Zap } from 'lucide-vue-next'
 import { useRadar } from '@/composables/useRadar'
-import { formatDateTime, formatNumber, formatRelativeTimeFromNow } from '@/i18n'
+import { formatNumber, formatRelativeTimeFromNow } from '@/i18n'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Badge from '@/components/ui/badge/Badge.vue'
@@ -26,10 +26,7 @@ const {
   topSignals,
   keywords,
   pool,
-  snapshots,
-  snapshotKeywords,
   recommendations,
-  selectedSnapshot,
   isLoading,
   isSaving,
   error,
@@ -43,8 +40,6 @@ const {
   createPoolItem,
   updatePoolItem,
   deletePoolItem,
-  captureSnapshot,
-  selectSnapshot,
   refreshRecommendations,
   applyRecommendationStrategy,
   updateRecommendation,
@@ -63,7 +58,6 @@ const filters = reactive({
 const expandedKeywords = ref<Record<string, boolean>>({})
 const poolKeyword = ref('')
 const poolNote = ref('')
-const snapshotNote = ref('')
 const editingPoolId = ref<number | null>(null)
 const poolDrafts = reactive<Record<number, { keyword: string; note: string }>>({})
 const recommendationVariantOptions: Array<{ value: RadarRecommendationVariantType; labelKey: string }> = [
@@ -149,40 +143,6 @@ const filteredTopOpportunities = computed(() =>
   ),
 )
 
-const snapshotKeywordMap = computed(() =>
-  new Map(snapshotKeywords.value.map((item) => [item.keyword, item])),
-)
-
-const snapshotSummaryComparison = computed(() => {
-  if (!selectedSnapshot.value) return null
-  return {
-    keywordCountDelta: summary.value.keywords_tracked - selectedSnapshot.value.keyword_count,
-    averageScoreDelta: Number((summary.value.average_opportunity_score - selectedSnapshot.value.average_score).toFixed(1)),
-  }
-})
-
-const snapshotComparisonRows = computed(() =>
-  filteredKeywords.value.slice(0, 8).map((current) => {
-    const previous = snapshotKeywordMap.value.get(current.keyword)
-    return {
-      keyword: current.keyword,
-      currentScore: current.opportunity_score,
-      previousScore: previous?.opportunity_score ?? null,
-      scoreDelta: previous ? current.opportunity_score - previous.opportunity_score : null,
-      currentRecent: current.recent_items_24h,
-      previousRecent: previous?.recent_items_24h ?? null,
-      recentDelta: previous ? current.recent_items_24h - previous.recent_items_24h : null,
-      currentMedian: current.median_price,
-      previousMedian: previous?.median_price ?? null,
-      medianDelta:
-        previous && current.median_price !== null && previous.median_price !== null
-          ? Number((current.median_price - previous.median_price).toFixed(2))
-          : null,
-      isNew: !previous,
-    }
-  }),
-)
-
 function scoreTone(score: number) {
   if (score >= 80) return 'bg-emerald-100 text-emerald-700'
   if (score >= 60) return 'bg-amber-100 text-amber-700'
@@ -201,23 +161,6 @@ function recommendationTone(status: RadarRecommendation['status']) {
   if (status === 'accepted') return 'bg-emerald-100 text-emerald-700'
   if (status === 'dismissed') return 'bg-slate-200 text-slate-700'
   return 'bg-amber-100 text-amber-700'
-}
-
-function deltaTone(value: number | null) {
-  if (value === null) return 'text-slate-400'
-  if (value > 0) return 'text-emerald-600'
-  if (value < 0) return 'text-rose-600'
-  return 'text-slate-500'
-}
-
-function formatDelta(value: number | null, digits = 0) {
-  if (value === null) return '—'
-  const rounded = digits > 0 ? value.toFixed(digits) : `${Math.round(value)}`
-  return value > 0 ? `+${rounded}` : rounded
-}
-
-function formatPrice(value: number | null) {
-  return value === null ? '—' : `¥${value}`
 }
 
 function getDraft(item: RadarKeywordItem): AnnotationDraft {
@@ -371,11 +314,6 @@ async function handleUpdatePoolItem(item: RadarPoolItem) {
   editingPoolId.value = null
 }
 
-async function handleCaptureSnapshot() {
-  await captureSnapshot(snapshotNote.value)
-  snapshotNote.value = ''
-}
-
 async function handleAcceptRecommendation(item: RadarRecommendation) {
   await updateRecommendation(item.id, 'accepted', true)
 }
@@ -409,10 +347,6 @@ async function handleRecommendationStrategyChange() {
         </p>
       </div>
       <div class="flex flex-wrap gap-3">
-        <Button variant="outline" class="gap-2" :disabled="isSaving" @click="handleCaptureSnapshot">
-          <History class="h-4 w-4" />
-          {{ t('radar.snapshots.capture') }}
-        </Button>
         <Button variant="outline" class="gap-2" :disabled="isLoading" @click="fetchRadar">
           <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isLoading }" />
           {{ t('common.refresh') }}
@@ -621,6 +555,9 @@ async function handleRecommendationStrategyChange() {
               <Lightbulb class="h-5 w-5 text-primary" />
               {{ t('radar.recommendations.title') }}
             </CardTitle>
+            <p class="text-sm text-slate-500">
+              {{ t('radar.recommendations.subtitle') }}
+            </p>
           </CardHeader>
           <CardContent class="space-y-4">
             <div class="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
@@ -895,102 +832,6 @@ async function handleRecommendationStrategyChange() {
           </CardContent>
         </Card>
 
-        <Card class="app-surface border-none">
-          <CardHeader>
-            <CardTitle class="text-lg font-bold text-slate-800">
-              {{ t('radar.snapshots.title') }}
-            </CardTitle>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <textarea
-              v-model="snapshotNote"
-              rows="2"
-              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
-              :placeholder="t('radar.snapshots.notePlaceholder')"
-            />
-            <div v-if="!isLoading && snapshots.length === 0" class="text-sm text-slate-500">
-              {{ t('radar.snapshots.empty') }}
-            </div>
-            <article
-              v-for="snapshot in snapshots"
-              :key="snapshot.id"
-              class="space-y-3 rounded-2xl border p-4"
-              :class="selectedSnapshot?.id === snapshot.id ? 'border-primary bg-primary/5' : 'border-slate-100 bg-slate-50/70'"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <h3 class="font-semibold text-slate-800">#{{ snapshot.id }}</h3>
-                  <p class="text-xs text-slate-500">{{ snapshot.created_at ? formatDateTime(snapshot.created_at) : '—' }}</p>
-                </div>
-                <Button size="sm" variant="outline" :disabled="isLoading" @click="selectSnapshot(snapshot.id)">
-                  {{ t('radar.snapshots.view') }}
-                </Button>
-              </div>
-              <p v-if="snapshot.note" class="text-sm text-slate-600">{{ snapshot.note }}</p>
-              <p class="text-xs text-slate-500">
-                {{ t('radar.snapshots.meta', {
-                  count: snapshot.keyword_count,
-                  score: snapshot.average_score,
-                  keyword: snapshot.top_keyword || '—',
-                }) }}
-              </p>
-            </article>
-            <div v-if="selectedSnapshot" class="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-              <div>
-                <h3 class="font-semibold text-slate-800">{{ t('radar.snapshots.detailTitle', { id: selectedSnapshot.id }) }}</h3>
-                <p class="mt-1 text-xs text-slate-500">{{ t('radar.snapshots.compareHint') }}</p>
-              </div>
-              <div v-if="snapshotSummaryComparison" class="grid gap-3 sm:grid-cols-2">
-                <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                  <p class="text-xs font-medium text-slate-500">{{ t('radar.snapshots.compareKeywords') }}</p>
-                  <p class="mt-2 text-lg font-bold text-slate-900">{{ summary.keywords_tracked }}</p>
-                  <p class="text-xs" :class="deltaTone(snapshotSummaryComparison.keywordCountDelta)">
-                    {{ t('radar.snapshots.compareDelta', { value: formatDelta(snapshotSummaryComparison.keywordCountDelta) }) }}
-                  </p>
-                </div>
-                <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                  <p class="text-xs font-medium text-slate-500">{{ t('radar.snapshots.compareScore') }}</p>
-                  <p class="mt-2 text-lg font-bold text-slate-900">{{ summary.average_opportunity_score }}</p>
-                  <p class="text-xs" :class="deltaTone(snapshotSummaryComparison.averageScoreDelta)">
-                    {{ t('radar.snapshots.compareDelta', { value: formatDelta(snapshotSummaryComparison.averageScoreDelta, 1) }) }}
-                  </p>
-                </div>
-              </div>
-              <div v-if="snapshotComparisonRows.length === 0" class="text-sm text-slate-500">
-                {{ t('radar.snapshots.detailEmpty') }}
-              </div>
-              <div v-for="item in snapshotComparisonRows" :key="item.keyword" class="space-y-2 rounded-2xl border border-slate-200 bg-white p-3">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="truncate font-medium text-slate-800">{{ item.keyword }}</span>
-                  <Badge v-if="item.isNew" variant="outline">{{ t('radar.snapshots.newKeyword') }}</Badge>
-                </div>
-                <div class="grid gap-2 text-xs text-slate-600">
-                  <div class="flex items-center justify-between gap-3">
-                    <span>{{ t('radar.snapshots.metric.score') }}</span>
-                    <span class="flex items-center gap-2">
-                      <span class="font-semibold text-slate-900">{{ item.currentScore }}</span>
-                      <span :class="deltaTone(item.scoreDelta)">{{ formatDelta(item.scoreDelta) }}</span>
-                    </span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span>{{ t('radar.snapshots.metric.recent') }}</span>
-                    <span class="flex items-center gap-2">
-                      <span class="font-semibold text-slate-900">{{ item.currentRecent }}</span>
-                      <span :class="deltaTone(item.recentDelta)">{{ formatDelta(item.recentDelta) }}</span>
-                    </span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span>{{ t('radar.snapshots.metric.medianPrice') }}</span>
-                    <span class="flex items-center gap-2">
-                      <span class="font-semibold text-slate-900">{{ formatPrice(item.currentMedian) }}</span>
-                      <span :class="deltaTone(item.medianDelta)">{{ formatDelta(item.medianDelta, 2) }}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   </div>

@@ -315,6 +315,9 @@ class TaskGenerateRequest(BaseModel):
     region: Optional[str] = None
     decision_mode: Literal["ai", "keyword"] = "ai"
     keyword_rules: List[str] = Field(default_factory=list)
+    finder_direction_id: Optional[int] = None
+    finder_candidate_id: Optional[int] = None
+    finder_recommendation_id: Optional[int] = None
 
     @model_validator(mode="before")
     @classmethod

@@ -9,7 +9,8 @@ import {
   Terminal,
   Settings2,
   ChevronRight,
-  BarChart3
+  BarChart3,
+  Compass
 } from 'lucide-vue-next'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useI18n } from 'vue-i18n'
@@ -25,6 +26,7 @@ const navItems = computed(() => [
   { to: '/tasks', label: t('sidebar.tasks'), icon: ListTodo },
   { to: '/accounts', label: t('sidebar.accounts'), icon: Users },
   { to: '/results', label: t('sidebar.results'), icon: Layers },
+  { to: '/directions', label: t('sidebar.directions'), icon: Compass },
   { to: '/radar', label: t('sidebar.radar'), icon: BarChart3 },
   { to: '/logs', label: t('sidebar.logs'), icon: Terminal },
   { to: '/settings', label: t('sidebar.settings'), icon: Settings2 },

@@ -84,4 +84,7 @@ export interface TaskGenerateRequest {
   region?: string | null;
   decision_mode?: 'ai' | 'keyword';
   keyword_rules?: string[];
+  finder_direction_id?: number;
+  finder_candidate_id?: number;
+  finder_recommendation_id?: number;
 }

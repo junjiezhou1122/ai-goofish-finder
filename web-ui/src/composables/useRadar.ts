@@ -10,8 +10,6 @@ import type {
   RadarRecommendation,
   RadarRecommendationStatus,
   RadarRecommendationVariantType,
-  RadarSnapshot,
-  RadarSnapshotKeyword,
   RadarSortField,
   RadarSortOrder,
 } from '@/types/radar.d.ts'
@@ -20,11 +18,8 @@ export function useRadar() {
   const overview = ref<RadarOverview | null>(null)
   const keywords = ref<RadarKeywordItem[]>([])
   const pool = ref<RadarPoolItem[]>([])
-  const snapshots = ref<RadarSnapshot[]>([])
-  const snapshotKeywords = ref<RadarSnapshotKeyword[]>([])
   const recommendations = ref<RadarRecommendation[]>([])
   const tasks = ref<Task[]>([])
-  const selectedSnapshot = ref<RadarSnapshot | null>(null)
   const isLoading = ref(false)
   const isSaving = ref(false)
   const error = ref<Error | null>(null)
@@ -45,11 +40,10 @@ export function useRadar() {
     isLoading.value = true
     error.value = null
     try {
-      const [overviewResponse, keywordResponse, poolResponse, snapshotResponse, recommendationResponse, taskResponse] = await Promise.all([
+      const [overviewResponse, keywordResponse, poolResponse, recommendationResponse, taskResponse] = await Promise.all([
         radarApi.getRadarOverview(),
         radarApi.getRadarKeywords(50, { sortBy: sortBy.value, sortOrder: sortOrder.value }),
         radarApi.getRadarKeywordPool(),
-        radarApi.getRadarSnapshots(),
         radarApi.getRadarRecommendations(20, {
           minScore: recommendationMinScore.value,
           variantTypes: recommendationVariantTypes.value,
@@ -59,14 +53,8 @@ export function useRadar() {
       overview.value = overviewResponse
       keywords.value = keywordResponse.items
       pool.value = poolResponse.items
-      snapshots.value = snapshotResponse.items
       recommendations.value = recommendationResponse.items
       tasks.value = taskResponse
-      const firstSnapshot = snapshotResponse.items[0] ?? null
-      selectedSnapshot.value = firstSnapshot
-      snapshotKeywords.value = firstSnapshot
-        ? (await radarApi.getRadarSnapshotKeywords(firstSnapshot.id)).items
-        : []
     } catch (e) {
       if (e instanceof Error) error.value = e
     } finally {
@@ -188,45 +176,6 @@ export function useRadar() {
     }
   }
 
-  async function captureSnapshot(note = '') {
-    isSaving.value = true
-    error.value = null
-    try {
-      const response = await radarApi.createRadarSnapshot(note)
-      snapshots.value = [response.snapshot, ...snapshots.value.filter((item) => item.id !== response.snapshot.id)]
-      selectedSnapshot.value = response.snapshot
-      snapshotKeywords.value = (await radarApi.getRadarSnapshotKeywords(response.snapshot.id)).items
-      return response.snapshot
-    } catch (e) {
-      if (e instanceof Error) {
-        error.value = e
-        throw e
-      }
-      throw e
-    } finally {
-      isSaving.value = false
-    }
-  }
-
-  async function selectSnapshot(snapshotId: number) {
-    isLoading.value = true
-    error.value = null
-    try {
-      const snapshotResponse = await radarApi.getRadarSnapshot(snapshotId)
-      const keywordsResponse = await radarApi.getRadarSnapshotKeywords(snapshotId)
-      selectedSnapshot.value = snapshotResponse.snapshot
-      snapshotKeywords.value = keywordsResponse.items
-    } catch (e) {
-      if (e instanceof Error) {
-        error.value = e
-        throw e
-      }
-      throw e
-    } finally {
-      isLoading.value = false
-    }
-  }
-
   async function refreshRecommendations() {
     isSaving.value = true
     error.value = null
@@ -336,11 +285,8 @@ export function useRadar() {
     overview,
     keywords,
     pool,
-    snapshots,
-    snapshotKeywords,
     recommendations,
     tasks,
-    selectedSnapshot,
     summary,
     topOpportunities,
     topSignals,
@@ -357,8 +303,6 @@ export function useRadar() {
     createPoolItem,
     updatePoolItem,
     deletePoolItem,
-    captureSnapshot,
-    selectSnapshot,
     refreshRecommendations,
     applyRecommendationStrategy,
     updateRecommendation,

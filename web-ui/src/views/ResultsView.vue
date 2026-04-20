@@ -35,6 +35,10 @@ const {
 
 const isDeleteDialogOpen = ref(false)
 
+async function handleKeywordAdded() {
+  await refreshResults()
+}
+
 const selectedTaskLabel = computed(() => {
   if (!selectedFile.value || fileOptions.value.length === 0) return null
   const match = fileOptions.value.find((option) => option.value === selectedFile.value)
@@ -115,7 +119,7 @@ async function handleDeleteResults() {
 
     <ResultsInsightsPanel :insights="insights" :selected-task-label="selectedTaskLabel" />
 
-    <ResultsGrid :results="results" :is-loading="isLoading" />
+    <ResultsGrid :results="results" :is-loading="isLoading" @keyword-added="handleKeywordAdded" />
 
     <Dialog v-model:open="isDeleteDialogOpen">
       <DialogContent class="sm:max-w-[420px]">

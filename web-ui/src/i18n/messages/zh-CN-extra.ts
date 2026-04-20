@@ -27,6 +27,7 @@ const zhCNExtra = {
         radar: '这个草稿来自雷达热词，默认偏向继续验证需求和热度。',
         recommendation: '这个草稿来自推荐词，默认更适合快速测试新机会。',
         pool: '这个草稿来自候选词池，默认保留你的备注作为任务背景。',
+        finder: '这个草稿来自 Finder 候选词推荐，默认用于快速验证是否值得长期监控。',
       },
     },
     editDialog: { title: '编辑任务: {task}', save: '保存更改' },

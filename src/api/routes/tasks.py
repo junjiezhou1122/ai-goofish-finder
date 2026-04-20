@@ -8,11 +8,15 @@ from typing import List
 import os
 import aiofiles
 from src.api.dependencies import (
+    get_direction_experiment_service,
+    get_direction_recommendation_service,
     get_process_service,
     get_scheduler_service,
     get_task_generation_service,
     get_task_service,
 )
+from src.services.direction_experiment_service import DirectionExperimentService
+from src.services.direction_recommendation_service import DirectionRecommendationService
 from src.services.task_service import TaskService
 from src.services.process_service import ProcessService
 from src.services.scheduler_service import SchedulerService
@@ -95,6 +99,9 @@ async def generate_task(
     service: TaskService = Depends(get_task_service),
     scheduler_service: SchedulerService = Depends(get_scheduler_service),
     generation_service: TaskGenerationService = Depends(get_task_generation_service),
+    experiment_service: DirectionExperimentService = Depends(get_direction_experiment_service),
+    recommendation_service: DirectionRecommendationService = Depends(get_direction_recommendation_service),
+    process_service: ProcessService = Depends(get_process_service),
 ):
     """创建任务。AI模式会生成分析标准，关键词模式直接保存规则。"""
     try:
@@ -124,6 +131,9 @@ async def generate_task(
                     task_service=service,
                     scheduler_service=scheduler_service,
                     generation_service=generation_service,
+                    experiment_service=experiment_service,
+                    recommendation_service=recommendation_service,
+                    process_service=process_service,
                 )
             )
             return JSONResponse(
@@ -136,6 +146,15 @@ async def generate_task(
 
         task = await service.create_task(build_task_create(req, ""))
         await _reload_scheduler_if_needed(service, scheduler_service)
+        if req.finder_direction_id:
+            await experiment_service.create_task_experiment(
+                direction_id=req.finder_direction_id,
+                candidate_id=req.finder_candidate_id,
+                recommendation_id=req.finder_recommendation_id,
+                task=task,
+            )
+        if req.finder_recommendation_id:
+            await recommendation_service.update_recommendation_status(req.finder_recommendation_id, "accepted")
         return {"message": "任务创建成功。", "task": serialize_task(task, scheduler_service)}
 
     except HTTPException:
@@ -248,6 +267,7 @@ async def delete_task(
         raise HTTPException(status_code=404, detail="任务未找到")
 
     await process_service.stop_task(task_id)
+    process_service.clear_task_experiment(task_id)
     success = await service.delete_task(task_id)
     if not success:
         raise HTTPException(status_code=404, detail="任务未找到")

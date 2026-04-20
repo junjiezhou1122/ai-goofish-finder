@@ -53,6 +53,9 @@ export function parseTaskFormDefaults(query: LocationQuery): TaskFormDefaults {
   const decisionMode = readString(query.decisionMode)
   const keywordRules = readKeywordRules(query.keywordRules)
   const maxPages = readNumber(query.maxPages)
+  const finderDirectionId = readNumber(query.finderDirectionId)
+  const finderCandidateId = readNumber(query.finderCandidateId)
+  const finderRecommendationId = readNumber(query.finderRecommendationId)
   const freeShipping = readBoolean(query.freeShipping)
   const personalOnly = readBoolean(query.personalOnly)
   const analyzeImages = readBoolean(query.analyzeImages)
@@ -72,6 +75,9 @@ export function parseTaskFormDefaults(query: LocationQuery): TaskFormDefaults {
   if (decisionMode === 'ai' || decisionMode === 'keyword') defaults.decision_mode = decisionMode
   if (keywordRules) defaults.keyword_rules = keywordRules
   if (maxPages !== undefined) defaults.max_pages = maxPages
+  if (finderDirectionId !== undefined) defaults.finder_direction_id = finderDirectionId
+  if (finderCandidateId !== undefined) defaults.finder_candidate_id = finderCandidateId
+  if (finderRecommendationId !== undefined) defaults.finder_recommendation_id = finderRecommendationId
   if (freeShipping !== undefined) defaults.free_shipping = freeShipping
   if (personalOnly !== undefined) defaults.personal_only = personalOnly
   if (analyzeImages !== undefined) defaults.analyze_images = analyzeImages
