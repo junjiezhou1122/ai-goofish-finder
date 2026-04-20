@@ -245,6 +245,24 @@ export function useDirections() {
     }
   }
 
+  async function generateRecommendations(directionId: number) {
+    isSaving.value = true
+    error.value = null
+    try {
+      const items = await directionsApi.generateDirectionRecommendations(directionId)
+      recommendationsByDirection.value = {
+        ...recommendationsByDirection.value,
+        [directionId]: items,
+      }
+      return items
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+      throw e
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   async function updateRecommendationStatus(
     directionId: number,
     recommendationId: number,
@@ -306,6 +324,7 @@ export function useDirections() {
     fetchExperiments,
     fetchLearningSummary,
     refreshRecommendations,
+    generateRecommendations,
     updateRecommendationStatus,
     buildDefaultPayload,
   }

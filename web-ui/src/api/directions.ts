@@ -65,6 +65,13 @@ export async function refreshDirectionRecommendations(directionId: number): Prom
   return result.items
 }
 
+export async function generateDirectionRecommendations(directionId: number): Promise<DirectionRecommendation[]> {
+  const result = await http(`/api/finder/directions/${directionId}/generate-recommendations`, {
+    method: 'POST',
+  })
+  return result.items
+}
+
 export async function updateDirectionRecommendation(
   recommendationId: number,
   status: 'pending' | 'accepted' | 'dismissed',

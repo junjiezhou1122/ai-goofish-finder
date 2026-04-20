@@ -31,7 +31,7 @@ const {
   deleteDirection,
   generateCandidates,
   refreshCandidates,
-  refreshRecommendations,
+  generateRecommendations,
   updateRecommendationStatus,
   buildDefaultPayload,
 } = useDirections()
@@ -135,7 +135,7 @@ function recommendationTone(status: string) {
 
 async function handleRefreshRecommendations(directionId: number) {
   try {
-    await refreshRecommendations(directionId)
+    await generateRecommendations(directionId)
   } catch {
     // error 已由 composable 记录
   }

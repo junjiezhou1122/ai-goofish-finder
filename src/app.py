@@ -103,6 +103,17 @@ async def lifespan(app: FastAPI):
     await scheduler_service.reload_jobs(tasks_list)
     scheduler_service.start()
 
+    # 注册所有已有方向的定时刷新任务
+    from src.infrastructure.persistence.sqlite_direction_repository import SqliteDirectionRepository
+    from src.services.direction_service import DirectionService
+    from src.services.direction_scheduler import register_direction_refresh, shutdown_scheduler
+    direction_repo = SqliteDirectionRepository()
+    direction_svc = DirectionService(direction_repo)
+    existing_directions = await direction_svc.get_all_directions()
+    for direction in existing_directions:
+        register_direction_refresh(direction)
+    print(f"已注册 {len(existing_directions)} 个方向的定时刷新任务")
+
     print("应用启动完成")
 
     yield
@@ -110,6 +121,7 @@ async def lifespan(app: FastAPI):
     # 关闭时
     print("正在关闭应用...")
     scheduler_service.stop()
+    shutdown_scheduler()
     await process_service.stop_all()
     print("应用已关闭")
 
