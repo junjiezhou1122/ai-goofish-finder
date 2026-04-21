@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive } from 'vue'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Compass, Lightbulb, RefreshCw, Rocket, Sparkles, TrendingUp, Trash2 } from 'lucide-vue-next'
 
@@ -12,7 +11,6 @@ import { useDirections } from '@/composables/useDirections'
 import type { Direction, DirectionRiskLevel, DirectionStatus, DirectionVariant } from '@/types/direction.d.ts'
 
 const { t } = useI18n()
-const router = useRouter()
 const {
   directions,
   candidatesByDirection,
@@ -33,6 +31,7 @@ const {
   refreshCandidates,
   generateRecommendations,
   updateRecommendationStatus,
+  createExperimentFromRecommendation,
   buildDefaultPayload,
 } = useDirections()
 
@@ -149,7 +148,7 @@ async function handleRecommendationStatus(directionId: number, recommendationId:
   }
 }
 
-function openRecommendationTaskDraft(item: {
+async function openRecommendationTaskDraft(item: {
   direction_id: number
   candidate_id: number
   id: number
@@ -157,29 +156,7 @@ function openRecommendationTaskDraft(item: {
   reason: string
   score: number
 }) {
-  router.push({
-    name: 'Tasks',
-    query: {
-      create: '1',
-      source: 'finder',
-      keyword: item.keyword,
-      taskName: t('directions.recommendations.taskDraft.taskName', { keyword: item.keyword }),
-      description: t('directions.recommendations.taskDraft.description', {
-        keyword: item.keyword,
-        reason: item.reason,
-        score: item.score,
-      }),
-      decisionMode: 'ai',
-      maxPages: item.score >= 80 ? '5' : '3',
-      newPublishOption: 'latest',
-      analyzeImages: 'true',
-      personalOnly: 'true',
-      freeShipping: 'true',
-      finderDirectionId: String(item.direction_id),
-      finderCandidateId: String(item.candidate_id),
-      finderRecommendationId: String(item.id),
-    },
-  })
+  await createExperimentFromRecommendation(item.direction_id, item.id)
 }
 
 onMounted(() => {

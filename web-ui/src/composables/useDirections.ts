@@ -289,6 +289,24 @@ export function useDirections() {
     }
   }
 
+  async function createExperimentFromRecommendation(directionId: number, recommendationId: number) {
+    isSaving.value = true
+    error.value = null
+    try {
+      await directionsApi.createExperimentFromRecommendation(directionId, recommendationId)
+      // Refresh experiments and recommendations to reflect changes
+      await Promise.all([
+        fetchExperiments(directionId).catch(() => undefined),
+        fetchRecommendations(directionId).catch(() => undefined),
+      ])
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+      throw e
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   function buildDefaultPayload(seedTopic = ''): DirectionCreatePayload {
     return {
       name: seedTopic ? `${seedTopic} 方向` : '',
@@ -325,7 +343,8 @@ export function useDirections() {
     fetchLearningSummary,
     refreshRecommendations,
     generateRecommendations,
-    updateRecommendationStatus,
+updateRecommendationStatus,
+    createExperimentFromRecommendation,
     buildDefaultPayload,
   }
 }

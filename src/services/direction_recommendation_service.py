@@ -75,6 +75,25 @@ class DirectionRecommendationService:
 
         return await asyncio.to_thread(self._list_direction_recommendations_sync, direction_id)
 
+    async def get_recommendation(self, recommendation_id: int) -> dict | None:
+        import asyncio
+
+        return await asyncio.to_thread(self._get_recommendation_sync, recommendation_id)
+
+    def _get_recommendation_sync(self, recommendation_id: int) -> dict | None:
+        bootstrap_sqlite_storage(self.db_path, legacy_config_file=self.legacy_config_file)
+        with sqlite_connection(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT id, direction_id, candidate_id, keyword, variant_type, reason, score, recommended_action, status, created_at, updated_at
+                FROM radar_candidate_recommendations WHERE id = ?
+                """,
+                (recommendation_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return DirectionRecommendation(**dict(row)).model_dump(mode="json")
+
     async def update_recommendation_status(self, recommendation_id: int, status: str) -> dict:
         import asyncio
 

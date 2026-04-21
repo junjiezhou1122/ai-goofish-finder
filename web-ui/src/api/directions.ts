@@ -93,3 +93,13 @@ export async function getDirectionLearningSummary(directionId: number): Promise<
   const result = await http(`/api/finder/directions/${directionId}/learning-summary`)
   return result.summary
 }
+
+export async function createExperimentFromRecommendation(
+  directionId: number,
+  recommendationId: number,
+): Promise<{ experiment: DirectionExperiment; task: unknown }> {
+  const result = await http(`/api/finder/directions/${directionId}/experiments?recommendation_id=${recommendationId}`, {
+    method: 'POST',
+  })
+  return result
+}

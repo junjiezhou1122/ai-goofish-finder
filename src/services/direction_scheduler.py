@@ -136,12 +136,13 @@ async def _refresh_pipeline(direction_id: int) -> None:
 
         logger.info(f"[Finder刷新] 找到 {len(candidates)} 个候选词，开始聚合 evidence...")
 
-        # 2. evidence + state 聚合
-        enriched = await insight_service.refresh_direction_candidates(direction_id, candidates)
-        logger.info(f"[Finder刷新] evidence 聚合完成，{len(enriched)} 个候选词已更新")
+        # 2. evidence + state 聚合（仅当有 result_items 时才写入，否则保持现有 state）
+        enriched_write = await insight_service.refresh_direction_candidates(direction_id, candidates)
+        enriched_read = await insight_service.list_direction_candidates(direction_id, candidates)
+        logger.info(f"[Finder刷新] evidence 聚合完成，{len(enriched_read)} 个候选词已更新")
 
-        # 3. 推荐刷新
-        await recommendation_service.refresh_direction_recommendations(direction_id, enriched)
+        # 3. 推荐刷新（使用读出的状态，不覆盖）
+        await recommendation_service.refresh_direction_recommendations(direction_id, enriched_read)
         logger.info(f"[Finder刷新] 推荐刷新完成")
 
     except Exception as exc:
